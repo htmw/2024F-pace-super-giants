@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { authService } from "../services/auth.service";
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -11,30 +12,80 @@ const LoginPage = () => {
     password: "",
   });
   const [rememberMe, setRememberMe] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleInputChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
+    // Clear error when user types
+    if (error) setError("");
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Add your login logic here
-    console.log("Login attempt:", {
-      ...formData,
-      userType: isCustomer ? "customer" : "restaurant",
-    });
-    // If customer, redirect to preferences if not completed
-    if (isCustomer) {
-      navigate("/preferences");
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const response = await authService.login({
+        ...formData,
+        userType: isCustomer ? "customer" : "restaurant",
+      });
+
+      // Store user type
+      localStorage.setItem("userType", isCustomer ? "customer" : "restaurant");
+
+      // Store remember me preference if checked
+      if (rememberMe) {
+        localStorage.setItem("rememberedEmail", formData.email);
+      } else {
+        localStorage.removeItem("rememberedEmail");
+      }
+
+      // Navigate based on user type and preferences status
+      if (isCustomer) {
+        if (response.user?.preferencesCompleted) {
+          navigate("/Udashboard");
+        } else {
+          navigate("/preferences");
+        }
+      } else {
+        navigate("/Rdashboard");
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || "Invalid email or password");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleGoogleLogin = () => {
-    // Add your Google login logic here
-    console.log("Google login attempted");
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const response = await authService.socialLogin("google");
+
+      localStorage.setItem("userType", response.user.userType);
+
+      // Navigate based on user type and preferences status
+      if (response.user.userType === "customer") {
+        if (response.user.preferencesCompleted) {
+          navigate("/Udashboard");
+        } else {
+          navigate("/preferences");
+        }
+      } else {
+        navigate("/Rdashboard");
+      }
+    } catch (err) {
+      setError("Google login failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -51,6 +102,13 @@ const LoginPage = () => {
         </div>
 
         <div className="bg-white rounded-lg shadow-xl p-8">
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-200">
+              <p className="text-sm text-red-600 font-['Arvo']">{error}</p>
+            </div>
+          )}
+
           {/* User Type Toggle */}
           <div className="flex space-x-4 mb-8">
             <button
@@ -88,7 +146,8 @@ const LoginPage = () => {
                   type="email"
                   name="email"
                   required
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[#990001] focus:border-[#990001]"
+                  disabled={isLoading}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[#990001] focus:border-[#990001] disabled:bg-gray-50 disabled:cursor-not-allowed"
                   placeholder={
                     isCustomer ? "your@email.com" : "restaurant@email.com"
                   }
@@ -109,7 +168,8 @@ const LoginPage = () => {
                   type={showPassword ? "text" : "password"}
                   name="password"
                   required
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[#990001] focus:border-[#990001]"
+                  disabled={isLoading}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[#990001] focus:border-[#990001] disabled:bg-gray-50 disabled:cursor-not-allowed"
                   placeholder="Enter your password"
                   value={formData.password}
                   onChange={handleInputChange}
@@ -118,6 +178,7 @@ const LoginPage = () => {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-2.5"
+                  disabled={isLoading}
                 >
                   {showPassword ? (
                     <EyeOff className="h-5 w-5 text-gray-400" />
@@ -135,7 +196,8 @@ const LoginPage = () => {
                   id="remember-me"
                   name="remember-me"
                   type="checkbox"
-                  className="h-4 w-4 text-[#990001] focus:ring-[#990001] border-gray-300 rounded"
+                  disabled={isLoading}
+                  className="h-4 w-4 text-[#990001] focus:ring-[#990001] border-gray-300 rounded disabled:cursor-not-allowed"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
                 />
@@ -160,9 +222,10 @@ const LoginPage = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#990001] hover:bg-[#800001] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#990001] font-['Arvo']"
+              disabled={isLoading}
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#990001] hover:bg-[#800001] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#990001] font-['Arvo'] disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
             >
-              Sign In
+              {isLoading ? "Signing in..." : "Sign In"}
             </button>
 
             {/* Google Login */}
@@ -182,11 +245,12 @@ const LoginPage = () => {
                 <button
                   type="button"
                   onClick={handleGoogleLogin}
-                  className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 font-['Arvo']"
+                  disabled={isLoading}
+                  className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 font-['Arvo'] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <img
                     className="h-5 w-5 mr-2"
-                    src="https://www.google.com/images/branding/googleg/1x/googleg_standard_color_128dp.png"
+                    src="/api/placeholder/20/20"
                     alt="Google"
                   />
                   <span className="ml-2">Continue with Google</span>

@@ -1,10 +1,12 @@
 // src/components/Navigation.jsx
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Home, Menu, LogIn, UserCircle } from "lucide-react";
+import { Home, Menu, LogOut, Settings, Bell } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 
 const Navigation = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { isAuthenticated, user, logout } = useAuth();
 
   return (
     <nav className="bg-white shadow-lg">
@@ -34,20 +36,38 @@ const Navigation = () => {
               <Menu className="w-4 h-4 mr-1" />
               Explore
             </Link>
-            <Link
-              to="/register"
-              className="flex items-center px-4 py-2 text-white bg-[#990001] rounded-md hover:bg-[#800001] font-['Arvo']"
-            >
-              <UserCircle className="w-4 h-4 mr-1" />
-              Register
-            </Link>
-            <Link
-              to="/login"
-              className="flex items-center px-4 py-2 text-[#990001] border border-[#990001] rounded-md hover:bg-[#990001] hover:text-white font-['Arvo']"
-            >
-              <LogIn className="w-4 h-4 mr-1" />
-              Login
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <button className="p-2 rounded-full hover:bg-gray-100">
+                  <Bell className="w-6 h-6 text-gray-600" />
+                </button>
+                <button className="p-2 rounded-full hover:bg-gray-100">
+                  <Settings className="w-6 h-6 text-gray-600" />
+                </button>
+                <button
+                  onClick={logout}
+                  className="h-8 w-8 rounded-full bg-[#990001] text-white flex items-center justify-center font-['Arvo']"
+                >
+                  {user?.firstName?.charAt(0)}
+                  {user?.lastName?.charAt(0)}
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/register"
+                  className="flex items-center px-4 py-2 text-white bg-[#990001] rounded-md hover:bg-[#800001] font-['Arvo']"
+                >
+                  Register
+                </Link>
+                <Link
+                  to="/login"
+                  className="flex items-center px-4 py-2 text-[#990001] border border-[#990001] rounded-md hover:bg-[#990001] hover:text-white font-['Arvo']"
+                >
+                  Login
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -98,18 +118,37 @@ const Navigation = () => {
               >
                 Explore
               </Link>
-              <Link
-                to="/register"
-                className="block px-3 py-2 text-white bg-[#990001] rounded-md hover:bg-[#800001] font-['Arvo']"
-              >
-                Register
-              </Link>
-              <Link
-                to="/login"
-                className="block px-3 py-2 text-[#990001] border border-[#990001] rounded-md hover:bg-[#990001] hover:text-white font-['Arvo']"
-              >
-                Login
-              </Link>
+              {isAuthenticated ? (
+                <>
+                  <button className="block px-3 py-2 text-gray-700 hover:text-[#990001] font-['Arvo']">
+                    Notifications
+                  </button>
+                  <button className="block px-3 py-2 text-gray-700 hover:text-[#990001] font-['Arvo']">
+                    Settings
+                  </button>
+                  <button
+                    onClick={logout}
+                    className="block px-3 py-2 text-[#990001] hover:text-[#800001] font-['Arvo']"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/register"
+                    className="block px-3 py-2 text-white bg-[#990001] rounded-md hover:bg-[#800001] font-['Arvo']"
+                  >
+                    Register
+                  </Link>
+                  <Link
+                    to="/login"
+                    className="block px-3 py-2 text-[#990001] border border-[#990001] rounded-md hover:bg-[#990001] hover:text-white font-['Arvo']"
+                  >
+                    Login
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         )}

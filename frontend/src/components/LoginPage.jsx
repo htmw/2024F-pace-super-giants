@@ -1,10 +1,19 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
-import { authService } from "../services/auth.service";
+import { useAuth } from "../context/AuthContext";
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const {
+    login,
+    loginWithGoogle,
+    isAuthenticated,
+    user,
+    error: authError,
+  } = useAuth();
+
   const [isCustomer, setIsCustomer] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -15,13 +24,31 @@ const LoginPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Check for remembered email on component mount
+  useEffect(() => {
+    const rememberedEmail = localStorage.getItem("rememberedEmail");
+    if (rememberedEmail) {
+      setFormData((prev) => ({ ...prev, email: rememberedEmail }));
+      setRememberMe(true);
+    }
+  }, []);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const defaultRedirect =
+        user.userType === "customer" ? "/Udashboard" : "/Rdashboard";
+      const redirectPath = location.state?.from || defaultRedirect;
+      navigate(redirectPath, { replace: true });
+    }
+  }, [isAuthenticated, user, navigate, location]);
+
   const handleInputChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
-    // Clear error when user types
-    if (error) setError("");
+    setError("");
   };
 
   const handleSubmit = async (e) => {
@@ -30,33 +57,22 @@ const LoginPage = () => {
     setError("");
 
     try {
-      const response = await authService.login({
+      // Add userType to login credentials
+      const credentials = {
         ...formData,
         userType: isCustomer ? "customer" : "restaurant",
-      });
+      };
 
-      // Store user type
-      localStorage.setItem("userType", isCustomer ? "customer" : "restaurant");
+      await login(credentials);
 
-      // Store remember me preference if checked
+      // Handle remember me
       if (rememberMe) {
         localStorage.setItem("rememberedEmail", formData.email);
       } else {
         localStorage.removeItem("rememberedEmail");
       }
-
-      // Navigate based on user type and preferences status
-      if (isCustomer) {
-        if (response.user?.preferencesCompleted) {
-          navigate("/Udashboard");
-        } else {
-          navigate("/preferences");
-        }
-      } else {
-        navigate("/Rdashboard");
-      }
     } catch (err) {
-      setError(err.response?.data?.message || "Invalid email or password");
+      setError(err.message || "Login failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -67,20 +83,7 @@ const LoginPage = () => {
     setError("");
 
     try {
-      const response = await authService.socialLogin("google");
-
-      localStorage.setItem("userType", response.user.userType);
-
-      // Navigate based on user type and preferences status
-      if (response.user.userType === "customer") {
-        if (response.user.preferencesCompleted) {
-          navigate("/Udashboard");
-        } else {
-          navigate("/preferences");
-        }
-      } else {
-        navigate("/Rdashboard");
-      }
+      await loginWithGoogle();
     } catch (err) {
       setError("Google login failed. Please try again.");
     } finally {
@@ -102,10 +105,12 @@ const LoginPage = () => {
         </div>
 
         <div className="bg-white rounded-lg shadow-xl p-8">
-          {/* Error Message */}
-          {error && (
+          {/* Error Messages */}
+          {(error || authError) && (
             <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-200">
-              <p className="text-sm text-red-600 font-['Arvo']">{error}</p>
+              <p className="text-sm text-red-600 font-['Arvo']">
+                {error || authError}
+              </p>
             </div>
           )}
 
@@ -119,6 +124,7 @@ const LoginPage = () => {
                   : "bg-gray-100 text-gray-600"
               }`}
               onClick={() => setIsCustomer(true)}
+              disabled={isLoading}
             >
               Customer
             </button>
@@ -130,6 +136,7 @@ const LoginPage = () => {
                   : "bg-gray-100 text-gray-600"
               }`}
               onClick={() => setIsCustomer(false)}
+              disabled={isLoading}
             >
               Restaurant
             </button>
@@ -246,14 +253,14 @@ const LoginPage = () => {
                   type="button"
                   onClick={handleGoogleLogin}
                   disabled={isLoading}
-                  className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 font-['Arvo'] disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 font-['Arvo'] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <img
-                    className="h-5 w-5 mr-2"
-                    src="/api/placeholder/20/20"
+                    src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
                     alt="Google"
+                    className="h-5 w-5 mr-2"
                   />
-                  <span className="ml-2">Continue with Google</span>
+                  <span>Continue with Google</span>
                 </button>
               </div>
             </div>
@@ -265,7 +272,7 @@ const LoginPage = () => {
               Don't have an account?{" "}
               <Link
                 to="/register"
-                className="text-[#990001] hover:text-[#800001]"
+                className="text-[#990001] hover:text-[#800001] font-medium"
               >
                 Sign up here
               </Link>

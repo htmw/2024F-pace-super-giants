@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { Eye, EyeOff, Mail, Lock, Building2 } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 
 const LoginPage = () => {
+  const navigate = useNavigate();
   const [isCustomer, setIsCustomer] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -25,6 +26,15 @@ const LoginPage = () => {
       ...formData,
       userType: isCustomer ? "customer" : "restaurant",
     });
+    // If customer, redirect to preferences if not completed
+    if (isCustomer) {
+      navigate("/preferences");
+    }
+  };
+
+  const handleGoogleLogin = () => {
+    // Add your Google login logic here
+    console.log("Google login attempted");
   };
 
   return (
@@ -44,6 +54,7 @@ const LoginPage = () => {
           {/* User Type Toggle */}
           <div className="flex space-x-4 mb-8">
             <button
+              type="button"
               className={`flex-1 py-2 px-4 rounded-md font-['Arvo'] transition-all ${
                 isCustomer
                   ? "bg-[#990001] text-white"
@@ -54,6 +65,7 @@ const LoginPage = () => {
               Customer
             </button>
             <button
+              type="button"
               className={`flex-1 py-2 px-4 rounded-md font-['Arvo'] transition-all ${
                 !isCustomer
                   ? "bg-[#990001] text-white"
@@ -153,7 +165,7 @@ const LoginPage = () => {
               Sign In
             </button>
 
-            {/* Social Login Options */}
+            {/* Google Login */}
             <div className="mt-6">
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
@@ -166,28 +178,18 @@ const LoginPage = () => {
                 </div>
               </div>
 
-              <div className="mt-6 grid grid-cols-2 gap-3">
+              <div className="mt-6">
                 <button
                   type="button"
+                  onClick={handleGoogleLogin}
                   className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 font-['Arvo']"
                 >
                   <img
-                    className="h-5 w-5"
-                    src="/api/placeholder/20/20"
+                    className="h-5 w-5 mr-2"
+                    src="https://www.google.com/images/branding/googleg/1x/googleg_standard_color_128dp.png"
                     alt="Google"
                   />
-                  <span className="ml-2">Google</span>
-                </button>
-                <button
-                  type="button"
-                  className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 font-['Arvo']"
-                >
-                  <img
-                    className="h-5 w-5"
-                    src="/api/placeholder/20/20"
-                    alt="Facebook"
-                  />
-                  <span className="ml-2">Facebook</span>
+                  <span className="ml-2">Continue with Google</span>
                 </button>
               </div>
             </div>

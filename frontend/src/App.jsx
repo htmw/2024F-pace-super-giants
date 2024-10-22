@@ -5,6 +5,7 @@ import RegisterPage from "./components/RegisterPage";
 import LoginPage from "./components/LoginPage";
 import PreferenceQuestionnaire from "./components/PreferenceQuestionnaire";
 import RestaurantDashboard from "./components/RestaurantDashboard";
+import UserDashboard from "./components/UserDashboard";
 
 function App() {
   return (
@@ -16,7 +17,8 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/preferences" element={<PreferenceQuestionnaire />} />
-          <Route path="dashboard" element={<RestaurantDashboard />} />
+          <Route path="Rdashboard" element={<RestaurantDashboard />} />
+          <Route path="Udashboard" element={<UserDashboard />} />
 
           {/* Catch-all route for 404 */}
           <Route

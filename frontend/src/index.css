@@ -1,68 +1,138 @@
-:root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@import url("https://fonts.googleapis.com/css2?family=Arvo:wght@400;500;700&display=swap");
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+@layer base {
+    :root {
+        --primary: 153 0 1; /* #990001 */
+        --primary-dark: 128 0 1; /* #800001 */
+        --background: 246 240 228; /* #F6F0E4 */
+    }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
+    html {
+        scroll-behavior: smooth;
+    }
 
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
+    body {
+        @apply bg-[#F6F0E4] font-['Arvo'] text-gray-900 antialiased;
+    }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        @apply font-['Arvo'] font-bold;
+    }
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+@layer components {
+    .btn {
+        @apply px-4 py-2 rounded-md transition-all duration-200 font-['Arvo'];
+    }
+
+    .btn-primary {
+        @apply btn bg-[#990001] text-white hover:bg-[#800001] focus:ring-2 focus:ring-[#990001] focus:ring-offset-2;
+    }
+
+    .btn-outline {
+        @apply btn border border-[#990001] text-[#990001] hover:bg-[#990001] hover:text-white;
+    }
+
+    .input-field {
+        @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm
+           focus:outline-none focus:ring-2 focus:ring-[#990001] focus:border-[#990001]
+           placeholder:text-gray-400;
+    }
+
+    .form-label {
+        @apply block text-sm font-medium text-gray-700 mb-1 font-['Arvo'];
+    }
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+@layer utilities {
+    .text-shadow {
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .bg-gradient {
+        background: linear-gradient(135deg, rgb(var(--background)), white);
+    }
+
+    .transition-custom {
+        @apply transition-all duration-300 ease-in-out;
+    }
+}
+
+/* Custom animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fadeIn {
+    animation: fadeIn 0.5s ease-out forwards;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    @apply bg-gray-100;
+}
+
+::-webkit-scrollbar-thumb {
+    @apply bg-[#990001] rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    @apply bg-[#800001];
+}
+
+/* Form focus states */
+input:focus,
+textarea:focus,
+select:focus {
+    @apply outline-none ring-2 ring-[#990001] border-[#990001];
+}
+
+/* Loading state utilities */
+.loading-skeleton {
+    @apply animate-pulse bg-gray-200 rounded;
+}
+
+/* Toast notification styles */
+.toast {
+    @apply fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg;
+}
+
+.toast-success {
+    @apply bg-green-500 text-white;
+}
+
+.toast-error {
+    @apply bg-red-500 text-white;
+}
+
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+    .container {
+        @apply px-4;
+    }
+
+    .btn {
+        @apply w-full justify-center;
+    }
 }

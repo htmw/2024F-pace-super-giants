@@ -1,26 +1,31 @@
-// src/components/ForgotPassword.jsx
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { Mail, ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Mail, ArrowLeft, Eye, EyeOff, Lock, AlertCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const ForgotPassword = () => {
+  const navigate = useNavigate();
+  const [step, setStep] = useState(1);
   const [email, setEmail] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
-  const { resetPassword } = useAuth();
+  const [formData, setFormData] = useState({
+    password: "",
+    confirmPassword: "",
+  });
+  const { verifyEmail, updateUserPassword } = useAuth();
 
-  const handleSubmit = async (e) => {
+  const handleEmailSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      await resetPassword(email);
-      setIsSuccess(true);
+      await verifyEmail(email);
+      setStep(2);
     } catch (error) {
-      console.error("Password reset error:", error);
+      console.error("Email verification error:", error);
       switch (error.code) {
         case "auth/user-not-found":
           setError("No account found with this email address.");
@@ -32,8 +37,40 @@ const ForgotPassword = () => {
           setError("Too many attempts. Please try again later.");
           break;
         default:
-          setError("Failed to send password reset email. Please try again.");
+          setError("Failed to verify email. Please try again.");
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters long");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await updateUserPassword(email, formData.password);
+      navigate("/login", {
+        state: {
+          message:
+            "Password successfully reset. Please login with your new password.",
+        },
+      });
+    } catch (error) {
+      console.error("Password update error:", error);
+      setError("Failed to update password. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -47,7 +84,9 @@ const ForgotPassword = () => {
             Reset Password
           </h1>
           <p className="mt-2 text-gray-600 font-['Arvo']">
-            Enter your email to receive a password reset link
+            {step === 1
+              ? "Enter your email to reset your password"
+              : "Create your new password"}
           </p>
         </div>
 
@@ -59,33 +98,8 @@ const ForgotPassword = () => {
             </div>
           )}
 
-          {isSuccess ? (
-            <div className="text-center">
-              <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold text-gray-900 mb-2 font-['Arvo']">
-                Check your email
-              </h2>
-              <p className="text-gray-600 mb-6 font-['Arvo']">
-                We've sent a password reset link to:
-                <br />
-                <span className="font-medium text-gray-900">{email}</span>
-              </p>
-              <p className="text-sm text-gray-500 mb-6 font-['Arvo']">
-                Didn't receive the email? Check your spam folder or try again.
-              </p>
-              <button
-                onClick={() => {
-                  setIsSuccess(false);
-                  setEmail("");
-                }}
-                className="text-[#990001] hover:text-[#800001] font-['Arvo'] flex items-center justify-center mx-auto"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Try another email
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-6">
+          {step === 1 ? (
+            <form onSubmit={handleEmailSubmit} className="space-y-6">
               <div>
                 <label
                   htmlFor="email"
@@ -113,7 +127,72 @@ const ForgotPassword = () => {
                 disabled={loading || !email}
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#990001] hover:bg-[#800001] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#990001] font-['Arvo'] disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
               >
-                {loading ? "Sending..." : "Send Reset Link"}
+                {loading ? "Verifying..." : "Continue"}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handlePasswordSubmit} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 font-['Arvo']">
+                  New Password
+                </label>
+                <div className="mt-1 relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={formData.password}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
+                    disabled={loading}
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[#990001] focus:border-[#990001] disabled:bg-gray-50 disabled:cursor-not-allowed"
+                    placeholder="Enter new password"
+                  />
+                  <Lock className="absolute right-3 top-2.5 h-5 w-5 text-gray-400" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 font-['Arvo']">
+                  Confirm New Password
+                </label>
+                <div className="mt-1 relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={formData.confirmPassword}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        confirmPassword: e.target.value,
+                      })
+                    }
+                    disabled={loading}
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[#990001] focus:border-[#990001] disabled:bg-gray-50 disabled:cursor-not-allowed"
+                    placeholder="Confirm new password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-2.5"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-5 w-5 text-gray-400" />
+                    ) : (
+                      <Eye className="h-5 w-5 text-gray-400" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={
+                  loading || !formData.password || !formData.confirmPassword
+                }
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#990001] hover:bg-[#800001] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#990001] font-['Arvo'] disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+              >
+                {loading ? "Updating..." : "Reset Password"}
               </button>
             </form>
           )}

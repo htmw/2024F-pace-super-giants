@@ -1,4 +1,3 @@
-// src/contexts/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -8,6 +7,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   onAuthStateChanged,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
@@ -21,27 +21,21 @@ export const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Firebase auth state listener
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
-          // Get additional user data from Firestore
           const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
           const userData = userDoc.data();
 
-          // Set user data in state
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
             ...userData,
           });
 
-          // Route users based on type
           if (userData.userType === "restaurant") {
-            // Restaurant users go directly to their dashboard
             navigate("/Rdashboard");
           } else if (userData.userType === "customer") {
-            // Customers go to preferences if not completed, otherwise dashboard
             if (!userData.preferencesCompleted) {
               navigate("/preferences");
             } else {
@@ -60,124 +54,6 @@ export const AuthProvider = ({ children }) => {
 
     return () => unsubscribe();
   }, [navigate]);
-
-  const login = async (credentials) => {
-    try {
-      setError(null);
-      const { email, password, userType } = credentials;
-
-      // Handle email/password login
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password,
-      );
-
-      // Get user data from Firestore
-      const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
-      const userData = userDoc.data();
-
-      // Verify user type matches
-      if (userData.userType !== userType) {
-        throw new Error(
-          `Invalid account type. Please use the correct login option for ${userType} accounts.`,
-        );
-      }
-
-      // Set user data in state
-      setUser({
-        uid: userCredential.user.uid,
-        email: userCredential.user.email,
-        ...userData,
-      });
-
-      return userCredential;
-    } catch (error) {
-      const errorMessage = getFirebaseErrorMessage(error.code) || error.message;
-      setError(errorMessage);
-      throw error;
-    }
-  };
-
-  const loginWithGoogle = async () => {
-    try {
-      setError(null);
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-
-      // Check if user exists in Firestore
-      const userDoc = await getDoc(doc(db, "users", result.user.uid));
-
-      if (!userDoc.exists()) {
-        // New user - set default data as customer
-        await setDoc(doc(db, "users", result.user.uid), {
-          email: result.user.email,
-          userType: "customer", // Google login is only for customers
-          preferencesCompleted: false,
-          createdAt: new Date().toISOString(),
-        });
-      }
-
-      // Set user data in state
-      setUser({
-        uid: result.user.uid,
-        email: result.user.email,
-        ...userDoc.data(),
-      });
-
-      return result;
-    } catch (error) {
-      const errorMessage = getFirebaseErrorMessage(error.code);
-      setError(errorMessage);
-      throw error;
-    }
-  };
-
-  const register = async (userData) => {
-    try {
-      setError(null);
-      const { email, password, ...otherData } = userData;
-
-      // Create user in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password,
-      );
-
-      // Store additional user data in Firestore
-      await setDoc(doc(db, "users", userCredential.user.uid), {
-        email,
-        ...otherData,
-        createdAt: new Date().toISOString(),
-      });
-
-      // Set user data in state
-      setUser({
-        uid: userCredential.user.uid,
-        email: userCredential.user.email,
-        ...otherData,
-      });
-
-      return userCredential;
-    } catch (error) {
-      const errorMessage = getFirebaseErrorMessage(error.code);
-      setError(errorMessage);
-      throw error;
-    }
-  };
-
-  const logout = async () => {
-    try {
-      await signOut(auth);
-      setUser(null);
-      setError(null);
-      navigate("/login");
-    } catch (error) {
-      setError("Failed to log out");
-      throw error;
-    }
-  };
 
   const getFirebaseErrorMessage = (errorCode) => {
     switch (errorCode) {
@@ -198,12 +74,135 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const login = async (credentials) => {
+    try {
+      setError(null);
+      const { email, password, userType } = credentials;
+
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password,
+      );
+
+      const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
+      const userData = userDoc.data();
+
+      if (userData.userType !== userType) {
+        throw new Error(
+          `Invalid account type. Please use the correct login option for ${userType} accounts.`,
+        );
+      }
+
+      setUser({
+        uid: userCredential.user.uid,
+        email: userCredential.user.email,
+        ...userData,
+      });
+
+      return userCredential;
+    } catch (error) {
+      const errorMessage = getFirebaseErrorMessage(error.code) || error.message;
+      setError(errorMessage);
+      throw error;
+    }
+  };
+
+  const loginWithGoogle = async () => {
+    try {
+      setError(null);
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+
+      const userDoc = await getDoc(doc(db, "users", result.user.uid));
+
+      if (!userDoc.exists()) {
+        await setDoc(doc(db, "users", result.user.uid), {
+          email: result.user.email,
+          userType: "customer",
+          preferencesCompleted: false,
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      setUser({
+        uid: result.user.uid,
+        email: result.user.email,
+        ...userDoc.data(),
+      });
+
+      return result;
+    } catch (error) {
+      const errorMessage = getFirebaseErrorMessage(error.code);
+      setError(errorMessage);
+      throw error;
+    }
+  };
+
+  const register = async (userData) => {
+    try {
+      setError(null);
+      const { email, password, ...otherData } = userData;
+
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password,
+      );
+
+      await setDoc(doc(db, "users", userCredential.user.uid), {
+        email,
+        ...otherData,
+        createdAt: new Date().toISOString(),
+      });
+
+      setUser({
+        uid: userCredential.user.uid,
+        email: userCredential.user.email,
+        ...otherData,
+      });
+
+      return userCredential;
+    } catch (error) {
+      const errorMessage = getFirebaseErrorMessage(error.code);
+      setError(errorMessage);
+      throw error;
+    }
+  };
+
+  const resetPassword = async (email) => {
+    try {
+      setError(null);
+      await sendPasswordResetEmail(auth, email, {
+        url: `${window.location.origin}/login`,
+        handleCodeInApp: false,
+      });
+    } catch (error) {
+      const errorMessage = getFirebaseErrorMessage(error.code);
+      setError(errorMessage);
+      throw error;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      setUser(null);
+      setError(null);
+      navigate("/login");
+    } catch (error) {
+      setError("Failed to log out");
+      throw error;
+    }
+  };
+
   const value = {
     user,
     login,
     loginWithGoogle,
     register,
     logout,
+    resetPassword,
     isAuthenticated: !!user,
     loading,
     error,
@@ -223,3 +222,5 @@ export const useAuth = () => {
   }
   return context;
 };
+
+export default AuthContext;

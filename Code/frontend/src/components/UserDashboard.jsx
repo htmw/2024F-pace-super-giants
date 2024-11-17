@@ -51,12 +51,17 @@ const UserDashboard = () => {
 
     const fetchRestaurants = async () => {
       try {
-        const restaurantsRef = collection(db, "restaurants");
-        let q = query(restaurantsRef, limit(12));
+        const usersRef = collection(db, "users");
+        let q = query(
+          usersRef,
+          where("userType", "==", "restaurant"),
+          limit(12),
+        );
 
         if (selectedCategory !== "all") {
           q = query(
-            restaurantsRef,
+            usersRef,
+            where("userType", "==", "restaurant"),
             where("cuisine", "==", selectedCategory),
             limit(12),
           );
@@ -66,15 +71,13 @@ const UserDashboard = () => {
         const restaurantData = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
-          // Add default values for required fields
           businessName: doc.data().businessName || "Restaurant Name",
           businessAddress: doc.data().businessAddress || "Address Unavailable",
           businessPhone: doc.data().businessPhone || "Phone Unavailable",
-          rating: (Math.random() * 2 + 3).toFixed(1), // Temporary random rating between 3-5
           cuisine: doc.data().cuisine || "Various Cuisine",
-          deliveryTime: "30-45 min",
         }));
 
+        console.log("Fetched Restaurants:", restaurantData); // Debug log
         setRestaurants(restaurantData);
         setLoading(false);
       } catch (err) {
@@ -117,10 +120,10 @@ const UserDashboard = () => {
   const filteredRestaurants = restaurants.filter(
     (restaurant) =>
       restaurant.businessName
-        .toLowerCase()
+        ?.toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
       restaurant.businessAddress
-        .toLowerCase()
+        ?.toLowerCase()
         .includes(searchTerm.toLowerCase()),
   );
 
@@ -191,15 +194,17 @@ const UserDashboard = () => {
                 <Settings className="w-6 h-6 text-gray-600" />
               </button>
 
-              <button
-                onClick={handleLogout}
-                className="flex items-center space-x-2 px-4 py-2 rounded-md hover:bg-gray-100"
-              >
-                <LogOut className="w-5 h-5 text-gray-600" />
-                <span className="text-sm text-gray-600 font-['Arvo']">
-                  Logout
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-gray-700 font-['Arvo']">
+                  {user?.firstName} {user?.lastName}
                 </span>
-              </button>
+                <button
+                  onClick={handleLogout}
+                  className="p-2 rounded-full hover:bg-gray-100"
+                >
+                  <LogOut className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -290,7 +295,7 @@ const UserDashboard = () => {
                   </span>
                 </div>
 
-                <div className="flex items-center text-sm text-gray-500">
+                <div className="flex items-center text-sm text-gray-500 mb-4">
                   <Clock className="w-4 h-4 mr-1" />
                   <span className="font-['Arvo']">
                     {restaurant.businessPhone}
@@ -299,7 +304,7 @@ const UserDashboard = () => {
 
                 <Link
                   to={`/restaurant/${restaurant.id}`}
-                  className="w-full mt-4 px-4 py-2 bg-[#990001] text-white rounded-md hover:bg-[#800001] transition-colors duration-300 font-['Arvo'] flex items-center justify-center"
+                  className="w-full mt-2 px-4 py-2 bg-[#990001] text-white rounded-md hover:bg-[#800001] transition-colors duration-300 font-['Arvo'] flex items-center justify-center"
                 >
                   View Menu
                   <ChevronRight className="w-4 h-4 ml-2" />

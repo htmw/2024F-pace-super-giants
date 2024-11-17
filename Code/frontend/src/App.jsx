@@ -38,7 +38,7 @@ const AppContent = () => {
         <Route
           path="/preferences"
           element={
-            <ProtectedRoute requiredUserType="customer">
+            <ProtectedRoute>
               <PreferenceQuestionnaire />
             </ProtectedRoute>
           }

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Heart,
@@ -8,16 +8,17 @@ import {
   DollarSign,
   Clock,
   UtensilsCrossed,
+  ArrowLeft,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { doc, updateDoc, setDoc, collection } from "firebase/firestore";
+import { doc, updateDoc, setDoc, collection, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
 const PreferenceQuestionnaire = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [preferences, setPreferences] = useState({
     dietaryRestrictions: [],
@@ -28,6 +29,29 @@ const PreferenceQuestionnaire = () => {
     allergies: [],
     specialOccasions: false,
   });
+
+  useEffect(() => {
+    const fetchExistingPreferences = async () => {
+      if (!user?.uid) return;
+
+      try {
+        const preferenceDoc = await getDoc(
+          doc(db, "users", user.uid, "preferences", "default"),
+        );
+
+        if (preferenceDoc.exists()) {
+          setPreferences(preferenceDoc.data());
+        }
+      } catch (err) {
+        console.error("Error fetching preferences:", err);
+        setError("Failed to load your preferences");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchExistingPreferences();
+  }, [user?.uid]);
 
   const questions = [
     {
@@ -217,13 +241,10 @@ const PreferenceQuestionnaire = () => {
 
     setLoading(true);
     try {
-      await setDoc(
-        doc(collection(db, "users", user.uid, "preferences"), "default"),
-        {
-          ...preferences,
-          updatedAt: new Date().toISOString(),
-        },
-      );
+      await setDoc(doc(db, "users", user.uid, "preferences", "default"), {
+        ...preferences,
+        updatedAt: new Date().toISOString(),
+      });
 
       await updateDoc(doc(db, "users", user.uid), {
         preferencesCompleted: true,
@@ -239,27 +260,22 @@ const PreferenceQuestionnaire = () => {
     }
   };
 
-  const handleSkip = async () => {
-    if (!user?.uid) {
-      setError("User not authenticated");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await updateDoc(doc(db, "users", user.uid), {
-        preferencesCompleted: true,
-        updatedAt: new Date().toISOString(),
-      });
-
-      navigate("/Udashboard");
-    } catch (err) {
-      console.error("Error skipping preferences:", err);
-      setError("Failed to skip. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+  const handleGoBack = () => {
+    navigate("/Udashboard");
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F6F0E4] flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-[#990001] border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-gray-600 font-['Arvo']">
+            Loading your preferences...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const currentQuestion = questions[currentStep];
   const progress = ((currentStep + 1) / questions.length) * 100;
@@ -272,6 +288,14 @@ const PreferenceQuestionnaire = () => {
             <p className="text-red-600 font-['Arvo']">{error}</p>
           </div>
         )}
+
+        <button
+          onClick={handleGoBack}
+          className="flex items-center text-[#990001] hover:text-[#800001] font-['Arvo']"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Dashboard
+        </button>
 
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div
@@ -337,7 +361,7 @@ const PreferenceQuestionnaire = () => {
                 disabled={loading}
                 className="px-6 py-2 bg-[#990001] text-white rounded-md hover:bg-[#800001] font-['Arvo'] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? "Saving..." : "Complete"}
+                {loading ? "Saving..." : "Save Preferences"}
               </button>
             ) : (
               <button
@@ -349,16 +373,6 @@ const PreferenceQuestionnaire = () => {
               </button>
             )}
           </div>
-        </div>
-
-        <div className="text-center">
-          <button
-            onClick={handleSkip}
-            disabled={loading}
-            className="text-gray-500 hover:text-[#990001] font-['Arvo'] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? "Processing..." : "Skip for now"}
-          </button>
         </div>
       </div>
     </div>

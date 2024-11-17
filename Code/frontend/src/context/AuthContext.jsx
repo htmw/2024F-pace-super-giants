@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -27,6 +27,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -41,13 +42,16 @@ export const AuthProvider = ({ children }) => {
             ...userData,
           });
 
-          if (userData.userType === "restaurant") {
-            navigate("/Rdashboard");
-          } else if (userData.userType === "customer") {
-            if (!userData.preferencesCompleted) {
-              navigate("/preferences");
-            } else {
-              navigate("/Udashboard");
+          // Only redirect if we're not already on the preferences page
+          if (location.pathname !== "/preferences") {
+            if (userData.userType === "restaurant") {
+              navigate("/Rdashboard");
+            } else if (userData.userType === "customer") {
+              if (!userData.preferencesCompleted) {
+                navigate("/preferences");
+              } else {
+                navigate("/Udashboard");
+              }
             }
           }
         } catch (error) {
@@ -61,7 +65,7 @@ export const AuthProvider = ({ children }) => {
     });
 
     return () => unsubscribe();
-  }, [navigate]);
+  }, [navigate, location.pathname]);
 
   const getFirebaseErrorMessage = (errorCode) => {
     switch (errorCode) {
@@ -212,12 +216,6 @@ export const AuthProvider = ({ children }) => {
 
       return true;
     } catch (error) {
-      if (error.code === "auth/requires-recent-login") {
-        const errorMessage = getFirebaseErrorMessage(error.code);
-        setError(errorMessage);
-        throw error;
-      }
-
       const errorMessage = getFirebaseErrorMessage(error.code);
       setError(errorMessage);
       throw error;

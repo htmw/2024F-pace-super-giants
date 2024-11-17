@@ -10,20 +10,12 @@ const HomePage = () => (
       Experience personalized dining with AI-driven menu recommendations and
       dynamic pricing
     </p>
-    <div className="flex space-x-4">
-      <Link
-        to="/register"
-        className="px-6 py-3 text-white bg-[#990001] rounded-md hover:bg-[#800001] font-['Arvo']"
-      >
-        Get Started
-      </Link>
-      <Link
-        to="/menu"
-        className="px-6 py-3 text-[#990001] border border-[#990001] rounded-md hover:bg-[#990001] hover:text-white font-['Arvo']"
-      >
-        Explore Menu
-      </Link>
-    </div>
+    <Link
+      to="/register"
+      className="px-6 py-3 text-white bg-[#990001] rounded-md hover:bg-[#800001] font-['Arvo']"
+    >
+      Get Started
+    </Link>
   </div>
 );
 

@@ -1,7 +1,7 @@
 // src/components/Navigation.jsx
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Home, Menu, LogOut, Settings, Bell } from "lucide-react";
+import { Home, Bell, Settings } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const Navigation = () => {
@@ -28,13 +28,6 @@ const Navigation = () => {
             >
               <Home className="w-4 h-4 mr-1" />
               Home
-            </Link>
-            <Link
-              to="/menu"
-              className="flex items-center px-3 py-2 text-gray-700 hover:text-[#990001] font-['Arvo']"
-            >
-              <Menu className="w-4 h-4 mr-1" />
-              Explore
             </Link>
             {isAuthenticated ? (
               <>
@@ -111,12 +104,6 @@ const Navigation = () => {
                 className="block px-3 py-2 text-gray-700 hover:text-[#990001] font-['Arvo']"
               >
                 Home
-              </Link>
-              <Link
-                to="/menu"
-                className="block px-3 py-2 text-gray-700 hover:text-[#990001] font-['Arvo']"
-              >
-                Explore
               </Link>
               {isAuthenticated ? (
                 <>

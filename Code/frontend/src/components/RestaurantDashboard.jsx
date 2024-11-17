@@ -3,14 +3,13 @@ import {
   BarChart3,
   Users,
   UtensilsCrossed,
-  TrendingUp,
   Settings,
   Bell,
   Plus,
   Search,
-  Filter,
   Edit,
   Trash2,
+  DollarSign,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -20,16 +19,65 @@ import {
   doc,
   deleteDoc,
   updateDoc,
+  addDoc,
   orderBy,
+  where,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../firebase";
 
+// Category options for menu items
+const CATEGORIES = [
+  "Appetizers",
+  "Main Course",
+  "Desserts",
+  "Beverages",
+  "Specials",
+  "Vegetarian",
+  "Vegan",
+  "Gluten-Free",
+];
+
+// Dietary restrictions options
+const DIETARY_RESTRICTIONS = [
+  "Vegetarian",
+  "Vegan",
+  "Gluten-Free",
+  "Dairy-Free",
+  "Nut-Free",
+  "Halal",
+  "Kosher",
+];
+
 const RestaurantDashboard = () => {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("menu");
   const [menuItems, setMenuItems] = useState([]);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterCategory, setFilterCategory] = useState("all");
+  const [stats, setStats] = useState({
+    totalRevenue: 0,
+    totalOrders: 0,
+    averageOrderValue: 0,
+    topSellingItems: [],
+  });
+
+  // New menu item form state
+  const [menuItemForm, setMenuItemForm] = useState({
+    name: "",
+    description: "",
+    price: "",
+    category: "",
+    preparationTime: "",
+    isSpicy: false,
+    dietaryRestrictions: [],
+    allergens: [],
+    status: "active",
+  });
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -37,7 +85,7 @@ const RestaurantDashboard = () => {
     // Listen to menu items
     const menuUnsubscribe = onSnapshot(
       query(
-        collection(db, "restaurants", user.uid, "menuItems"),
+        collection(db, `restaurants/${user.uid}/menuItems`),
         orderBy("createdAt", "desc"),
       ),
       (snapshot) => {
@@ -52,13 +100,18 @@ const RestaurantDashboard = () => {
 
     // Listen to orders
     const ordersUnsubscribe = onSnapshot(
-      query(collection(db, "orders"), orderBy("createdAt", "desc")),
+      query(
+        collection(db, "orders"),
+        where("restaurantId", "==", user.uid),
+        orderBy("createdAt", "desc"),
+      ),
       (snapshot) => {
         const orderData = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
         setOrders(orderData);
+        calculateStats(orderData);
       },
     );
 
@@ -68,30 +121,142 @@ const RestaurantDashboard = () => {
     };
   }, [user?.uid]);
 
-  const handleDeleteMenuItem = async (itemId) => {
-    if (window.confirm("Are you sure you want to delete this item?")) {
-      try {
-        await deleteDoc(doc(db, "restaurants", user.uid, "menuItems", itemId));
-      } catch (err) {
-        console.error("Error deleting menu item:", err);
+  const calculateStats = (orderData) => {
+    const total = orderData.reduce((sum, order) => sum + (order.total || 0), 0);
+    const itemSales = {};
+
+    orderData.forEach((order) => {
+      order.items?.forEach((item) => {
+        itemSales[item.id] = (itemSales[item.id] || 0) + item.quantity;
+      });
+    });
+
+    const topItems = Object.entries(itemSales)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([id, quantity]) => {
+        const menuItem = menuItems.find((item) => item.id === id);
+        return {
+          id,
+          name: menuItem?.name || "Unknown Item",
+          quantity,
+          revenue: (menuItem?.price || 0) * quantity,
+        };
+      });
+
+    setStats({
+      totalRevenue: total,
+      totalOrders: orderData.length,
+      averageOrderValue: orderData.length ? total / orderData.length : 0,
+      topSellingItems: topItems,
+    });
+  };
+
+  const handleAddMenuItem = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const menuItemData = {
+        ...menuItemForm,
+        price: parseFloat(menuItemForm.price),
+        preparationTime: parseInt(menuItemForm.preparationTime),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      if (editingItem) {
+        await updateDoc(
+          doc(db, `restaurants/${user.uid}/menuItems/${editingItem.id}`),
+          menuItemData,
+        );
+      } else {
+        await addDoc(
+          collection(db, `restaurants/${user.uid}/menuItems`),
+          menuItemData,
+        );
       }
+
+      setShowAddModal(false);
+      setEditingItem(null);
+      resetMenuItemForm();
+    } catch (error) {
+      console.error("Error adding/updating menu item:", error);
+      alert("Failed to save menu item. Please try again.");
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleDeleteMenuItem = async (itemId) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
+
+    try {
+      await deleteDoc(doc(db, `restaurants/${user.uid}/menuItems/${itemId}`));
+    } catch (error) {
+      console.error("Error deleting menu item:", error);
+      alert("Failed to delete menu item. Please try again.");
+    }
+  };
+
+  const handleEditMenuItem = (item) => {
+    setEditingItem(item);
+    setMenuItemForm({
+      name: item.name,
+      description: item.description,
+      price: item.price.toString(),
+      category: item.category,
+      preparationTime: item.preparationTime.toString(),
+      isSpicy: item.isSpicy,
+      dietaryRestrictions: item.dietaryRestrictions || [],
+      allergens: item.allergens || [],
+      status: item.status,
+    });
+    setShowAddModal(true);
+  };
+
+  const resetMenuItemForm = () => {
+    setMenuItemForm({
+      name: "",
+      description: "",
+      price: "",
+      category: "",
+      preparationTime: "",
+      isSpicy: false,
+      dietaryRestrictions: [],
+      allergens: [],
+      status: "active",
+    });
   };
 
   const handleUpdateStatus = async (itemId, newStatus) => {
     try {
-      await updateDoc(doc(db, "restaurants", user.uid, "menuItems", itemId), {
+      await updateDoc(doc(db, `restaurants/${user.uid}/menuItems/${itemId}`), {
         status: newStatus,
+        updatedAt: serverTimestamp(),
       });
-    } catch (err) {
-      console.error("Error updating status:", err);
+    } catch (error) {
+      console.error("Error updating status:", error);
+      alert("Failed to update item status. Please try again.");
     }
   };
+
+  const filteredMenuItems = menuItems.filter((item) => {
+    const matchesSearch =
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory =
+      filterCategory === "all" || item.category === filterCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F6F0E4] flex items-center justify-center">
-        Loading...
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-[#990001] border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-gray-600 font-['Arvo']">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -138,10 +303,7 @@ const RestaurantDashboard = () => {
                   Total Revenue
                 </p>
                 <p className="text-2xl font-bold text-gray-900 font-['Arvo']">
-                  $
-                  {orders
-                    .reduce((sum, order) => sum + (order.total || 0), 0)
-                    .toFixed(2)}
+                  ${stats.totalRevenue.toFixed(2)}
                 </p>
               </div>
             </div>
@@ -153,9 +315,11 @@ const RestaurantDashboard = () => {
                 <Users className="w-6 h-6 text-[#990001]" />
               </div>
               <div>
-                <p className="text-sm text-gray-600 font-['Arvo']">Customers</p>
+                <p className="text-sm text-gray-600 font-['Arvo']">
+                  Total Orders
+                </p>
                 <p className="text-2xl font-bold text-gray-900 font-['Arvo']">
-                  {new Set(orders.map((order) => order.customerId)).size}
+                  {stats.totalOrders}
                 </p>
               </div>
             </div>
@@ -180,151 +344,332 @@ const RestaurantDashboard = () => {
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center">
               <div className="rounded-full bg-[#990001] bg-opacity-10 p-3 mr-4">
-                <TrendingUp className="w-6 h-6 text-[#990001]" />
+                <DollarSign className="w-6 h-6 text-[#990001]" />
               </div>
               <div>
                 <p className="text-sm text-gray-600 font-['Arvo']">
-                  Active Orders
+                  Avg. Order Value
                 </p>
                 <p className="text-2xl font-bold text-gray-900 font-['Arvo']">
-                  {orders.filter((order) => order.status === "pending").length}
+                  ${stats.averageOrderValue.toFixed(2)}
                 </p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Menu and Orders Tabs */}
+        {/* Menu Management Section */}
         <div className="bg-white rounded-lg shadow-md">
-          <nav className="flex space-x-8 px-6 border-b">
-            {["menu", "orders"].map((tab) => (
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-900 font-['Arvo']">
+                Menu Management
+              </h2>
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`${
-                  activeTab === tab
-                    ? "border-[#990001] text-[#990001]"
-                    : "border-transparent text-gray-500"
-                } border-b-2 py-4 px-1 font-['Arvo'] font-medium capitalize`}
+                onClick={() => {
+                  resetMenuItemForm();
+                  setEditingItem(null);
+                  setShowAddModal(true);
+                }}
+                className="px-4 py-2 bg-[#990001] text-white rounded-md hover:bg-[#800001] font-['Arvo'] flex items-center"
               >
-                {tab}
+                <Plus className="w-4 h-4 mr-2" />
+                Add Menu Item
               </button>
-            ))}
-          </nav>
+            </div>
 
-          <div className="p-6">
-            {activeTab === "menu" ? (
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Price
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {menuItems.map((item) => (
-                    <tr key={item.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {item.name}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        ${item.price}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-2 rounded-full text-xs ${
-                            item.status === "active"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <button
-                          onClick={() =>
-                            handleUpdateStatus(
-                              item.id,
-                              item.status === "active" ? "inactive" : "active",
-                            )
-                          }
-                          className="text-[#990001] hover:text-[#800001] mr-3"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteMenuItem(item.id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
+            {/* Search and Filter */}
+            <div className="mt-4 flex flex-col md:flex-row md:items-center md:space-x-4 space-y-4 md:space-y-0">
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  placeholder="Search menu items..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-[#990001] focus:border-[#990001]"
+                />
+                <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+              </div>
+              <div className="flex items-center space-x-4">
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-[#990001] focus:border-[#990001]"
+                >
+                  <option value="all">All Categories</option>
+                  {CATEGORIES.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
                   ))}
-                </tbody>
-              </table>
-            ) : (
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Order ID
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Customer
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Total
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Status
-                    </th>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Menu Items Table */}
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Item
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Category
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Price
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredMenuItems.map((item) => (
+                  <tr key={item.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">
+                            {item.name}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {item.description}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                        {item.category}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      ${item.price.toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          item.status === "active"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
+                        }`}
+                      >
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <button
+                        onClick={() => handleEditMenuItem(item)}
+                        className="text-[#990001] hover:text-[#800001] mr-3"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleUpdateStatus(
+                            item.id,
+                            item.status === "active" ? "inactive" : "active",
+                          )
+                        }
+                        className="text-blue-600 hover:text-blue-900 mr-3"
+                      >
+                        {item.status === "active" ? "Deactivate" : "Activate"}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteMenuItem(item.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {orders.map((order) => (
-                    <tr key={order.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        #{order.id.slice(0, 8)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {order.customerName}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        ${order.total}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-2 rounded-full text-xs ${
-                            order.status === "completed"
-                              ? "bg-green-100 text-green-800"
-                              : order.status === "pending"
-                                ? "bg-yellow-100 text-yellow-800"
-                                : "bg-blue-100 text-blue-800"
-                          }`}
-                        >
-                          {order.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
+
+      {/* Add/Edit Menu Item Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+          <div className="relative top-20 mx-auto p-5 border w-full max-w-xl shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                {editingItem ? "Edit Menu Item" : "Add New Menu Item"}
+              </h3>
+              <form onSubmit={handleAddMenuItem} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={menuItemForm.name}
+                    onChange={(e) =>
+                      setMenuItemForm({ ...menuItemForm, name: e.target.value })
+                    }
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#990001] focus:border-[#990001]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Description
+                  </label>
+                  <textarea
+                    required
+                    value={menuItemForm.description}
+                    onChange={(e) =>
+                      setMenuItemForm({
+                        ...menuItemForm,
+                        description: e.target.value,
+                      })
+                    }
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#990001] focus:border-[#990001]"
+                    rows="3"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Price
+                    </label>
+                    <div className="mt-1 relative rounded-md shadow-sm">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span className="text-gray-500 sm:text-sm">$</span>
+                      </div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={menuItemForm.price}
+                        onChange={(e) =>
+                          setMenuItemForm({
+                            ...menuItemForm,
+                            price: e.target.value,
+                          })
+                        }
+                        className="mt-1 block w-full pl-7 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#990001] focus:border-[#990001]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Category
+                    </label>
+                    <select
+                      required
+                      value={menuItemForm.category}
+                      onChange={(e) =>
+                        setMenuItemForm({
+                          ...menuItemForm,
+                          category: e.target.value,
+                        })
+                      }
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#990001] focus:border-[#990001]"
+                    >
+                      <option value="">Select Category</option>
+                      {CATEGORIES.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Preparation Time (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={menuItemForm.preparationTime}
+                    onChange={(e) =>
+                      setMenuItemForm({
+                        ...menuItemForm,
+                        preparationTime: e.target.value,
+                      })
+                    }
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#990001] focus:border-[#990001]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Dietary Restrictions
+                  </label>
+                  <div className="mt-2 space-y-2">
+                    {DIETARY_RESTRICTIONS.map((restriction) => (
+                      <label
+                        key={restriction}
+                        className="inline-flex items-center mr-4"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={menuItemForm.dietaryRestrictions.includes(
+                            restriction,
+                          )}
+                          onChange={(e) => {
+                            const updatedRestrictions = e.target.checked
+                              ? [
+                                  ...menuItemForm.dietaryRestrictions,
+                                  restriction,
+                                ]
+                              : menuItemForm.dietaryRestrictions.filter(
+                                  (r) => r !== restriction,
+                                );
+                            setMenuItemForm({
+                              ...menuItemForm,
+                              dietaryRestrictions: updatedRestrictions,
+                            });
+                          }}
+                          className="form-checkbox h-4 w-4 text-[#990001]"
+                        />
+                        <span className="ml-2 text-sm text-gray-700">
+                          {restriction}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-5 flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddModal(false);
+                      setEditingItem(null);
+                      resetMenuItemForm();
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#990001]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-4 py-2 text-sm font-medium text-white bg-[#990001] border border-transparent rounded-md hover:bg-[#800001] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#990001] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? "Saving..." : "Save Item"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

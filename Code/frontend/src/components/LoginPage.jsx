@@ -36,12 +36,15 @@ const LoginPage = () => {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && user) {
-      const defaultRedirect =
-        user.userType === "customer" ? "/Udashboard" : "/Rdashboard";
-      const redirectPath = location.state?.from || defaultRedirect;
+      const redirectPath =
+        user.userType === "restaurant"
+          ? "/Rdashboard" // Restaurant users always go to restaurant dashboard
+          : user.preferencesCompleted
+            ? "/Udashboard" // Customers with preferences go to user dashboard
+            : "/preferences"; // New customers go to preferences
       navigate(redirectPath, { replace: true });
     }
-  }, [isAuthenticated, user, navigate, location]);
+  }, [isAuthenticated, user, navigate]);
 
   const handleInputChange = (e) => {
     setFormData({
@@ -79,6 +82,11 @@ const LoginPage = () => {
   };
 
   const handleGoogleLogin = async () => {
+    if (!isCustomer) {
+      setError("Google login is only available for customers");
+      return;
+    }
+
     setIsLoading(true);
     setError("");
 
@@ -230,40 +238,43 @@ const LoginPage = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#990001] hover:bg-[#800001] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#990001] font-['Arvo'] disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm{/* Submit Button Continued */}
+                            font-medium text-white bg-[#990001] hover:bg-[#800001] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#990001] font-['Arvo'] disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
             >
               {isLoading ? "Signing in..." : "Sign In"}
             </button>
 
-            {/* Google Login */}
-            <div className="mt-6">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500 font-['Arvo']">
-                    Or continue with
-                  </span>
-                </div>
-              </div>
-
+            {/* Google Login - Only show for customers */}
+            {isCustomer && (
               <div className="mt-6">
-                <button
-                  type="button"
-                  onClick={handleGoogleLogin}
-                  disabled={isLoading}
-                  className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 font-['Arvo'] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <img
-                    src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-                    alt="Google"
-                    className="h-5 w-5 mr-2"
-                  />
-                  <span>Continue with Google</span>
-                </button>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300" />
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white text-gray-500 font-['Arvo']">
+                      Or continue with
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  <button
+                    type="button"
+                    onClick={handleGoogleLogin}
+                    disabled={isLoading}
+                    className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 font-['Arvo'] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <img
+                      src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                      alt="Google"
+                      className="h-5 w-5 mr-2"
+                    />
+                    <span>Continue with Google</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </form>
 
           {/* Sign Up Link */}

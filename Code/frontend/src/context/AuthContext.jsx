@@ -24,25 +24,33 @@ export const AuthProvider = ({ children }) => {
     // Firebase auth state listener
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Get additional user data from Firestore
-        const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-        const userData = userDoc.data();
+        try {
+          // Get additional user data from Firestore
+          const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+          const userData = userDoc.data();
 
-        setUser({
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          ...userData,
-        });
+          // Set user data in state
+          setUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            ...userData,
+          });
 
-        // Navigate based on user type and preferences status
-        if (userData.userType === "customer") {
-          if (userData.preferencesCompleted) {
-            navigate("/Udashboard");
-          } else {
-            navigate("/preferences");
+          // Route users based on type
+          if (userData.userType === "restaurant") {
+            // Restaurant users go directly to their dashboard
+            navigate("/Rdashboard");
+          } else if (userData.userType === "customer") {
+            // Customers go to preferences if not completed, otherwise dashboard
+            if (!userData.preferencesCompleted) {
+              navigate("/preferences");
+            } else {
+              navigate("/Udashboard");
+            }
           }
-        } else {
-          navigate("/Rdashboard");
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+          setError("Failed to load user data");
         }
       } else {
         setUser(null);
@@ -56,7 +64,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     try {
       setError(null);
-      const { email, password } = credentials;
+      const { email, password, userType } = credentials;
 
       // Handle email/password login
       const userCredential = await signInWithEmailAndPassword(
@@ -64,8 +72,17 @@ export const AuthProvider = ({ children }) => {
         email,
         password,
       );
+
+      // Get user data from Firestore
       const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
       const userData = userDoc.data();
+
+      // Verify user type matches
+      if (userData.userType !== userType) {
+        throw new Error(
+          `Invalid account type. Please use the correct login option for ${userType} accounts.`,
+        );
+      }
 
       // Set user data in state
       setUser({
@@ -76,7 +93,7 @@ export const AuthProvider = ({ children }) => {
 
       return userCredential;
     } catch (error) {
-      const errorMessage = getFirebaseErrorMessage(error.code);
+      const errorMessage = getFirebaseErrorMessage(error.code) || error.message;
       setError(errorMessage);
       throw error;
     }
@@ -92,10 +109,10 @@ export const AuthProvider = ({ children }) => {
       const userDoc = await getDoc(doc(db, "users", result.user.uid));
 
       if (!userDoc.exists()) {
-        // New user - set default data
+        // New user - set default data as customer
         await setDoc(doc(db, "users", result.user.uid), {
           email: result.user.email,
-          userType: "customer",
+          userType: "customer", // Google login is only for customers
           preferencesCompleted: false,
           createdAt: new Date().toISOString(),
         });
@@ -158,6 +175,7 @@ export const AuthProvider = ({ children }) => {
       navigate("/login");
     } catch (error) {
       setError("Failed to log out");
+      throw error;
     }
   };
 

@@ -7,9 +7,17 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   onAuthStateChanged,
-  sendPasswordResetEmail,
+  updatePassword,
 } from "firebase/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import {
+  doc,
+  setDoc,
+  getDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
 import { auth, db } from "../firebase";
 
 const AuthContext = createContext(null);
@@ -69,6 +77,8 @@ export const AuthProvider = ({ children }) => {
         return "Invalid email address.";
       case "auth/too-many-requests":
         return "Too many failed attempts. Please try again later.";
+      case "auth/requires-recent-login":
+        return "Please log in again to update your password.";
       default:
         return "An error occurred. Please try again.";
     }
@@ -170,14 +180,44 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const resetPassword = async (email) => {
+  const verifyEmail = async (email) => {
     try {
       setError(null);
-      await sendPasswordResetEmail(auth, email, {
-        url: `${window.location.origin}/login`,
-        handleCodeInApp: false,
-      });
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("email", "==", email));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        throw new Error("auth/user-not-found");
+      }
+
+      return true;
     } catch (error) {
+      const errorMessage = getFirebaseErrorMessage(error.code);
+      setError(errorMessage);
+      throw error;
+    }
+  };
+
+  const updateUserPassword = async (email, newPassword) => {
+    try {
+      setError(null);
+      const currentUser = auth.currentUser;
+
+      if (!currentUser) {
+        await signInWithEmailAndPassword(auth, email, newPassword);
+      }
+
+      await updatePassword(currentUser, newPassword);
+
+      return true;
+    } catch (error) {
+      if (error.code === "auth/requires-recent-login") {
+        const errorMessage = getFirebaseErrorMessage(error.code);
+        setError(errorMessage);
+        throw error;
+      }
+
       const errorMessage = getFirebaseErrorMessage(error.code);
       setError(errorMessage);
       throw error;
@@ -202,7 +242,8 @@ export const AuthProvider = ({ children }) => {
     loginWithGoogle,
     register,
     logout,
-    resetPassword,
+    verifyEmail,
+    updateUserPassword,
     isAuthenticated: !!user,
     loading,
     error,

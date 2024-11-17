@@ -144,7 +144,6 @@ const RegisterPage = () => {
                 businessName: formData.businessName.trim(),
                 businessAddress: formData.businessAddress.trim(),
                 businessPhone: formData.businessPhone.replace(/\D/g, ""),
-                isVerified: false,
               }),
         };
 

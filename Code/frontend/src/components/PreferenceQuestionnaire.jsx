@@ -9,10 +9,16 @@ import {
   Clock,
   UtensilsCrossed,
 } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { doc, updateDoc, setDoc, collection } from "firebase/firestore";
+import { db } from "../firebase";
 
 const PreferenceQuestionnaire = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [preferences, setPreferences] = useState({
     dietaryRestrictions: [],
     spicePreference: "",
@@ -60,10 +66,18 @@ const PreferenceQuestionnaire = () => {
       subtitle: "Select your preferred spice level",
       type: "singleSelect",
       options: [
-        { value: "mild", label: "Mild" },
-        { value: "medium", label: "Medium" },
-        { value: "hot", label: "Hot" },
-        { value: "extra-hot", label: "Extra Hot" },
+        { value: "mild", label: "Mild", icon: <Flame className="w-5 h-5" /> },
+        {
+          value: "medium",
+          label: "Medium",
+          icon: <Flame className="w-5 h-5" />,
+        },
+        { value: "hot", label: "Hot", icon: <Flame className="w-5 h-5" /> },
+        {
+          value: "extra-hot",
+          label: "Extra Hot",
+          icon: <Flame className="w-5 h-5" />,
+        },
       ],
       field: "spicePreference",
     },
@@ -75,22 +89,22 @@ const PreferenceQuestionnaire = () => {
       options: [
         {
           value: "budget",
-          label: "Budget Friendly",
+          label: "Budget Friendly ($)",
           icon: <DollarSign className="w-5 h-5" />,
         },
         {
           value: "moderate",
-          label: "Moderate",
+          label: "Moderate ($$)",
           icon: <DollarSign className="w-5 h-5" />,
         },
         {
           value: "premium",
-          label: "Premium Dining",
+          label: "Premium ($$$)",
           icon: <DollarSign className="w-5 h-5" />,
         },
         {
           value: "luxury",
-          label: "Luxury Experience",
+          label: "Luxury ($$$$)",
           icon: <DollarSign className="w-5 h-5" />,
         },
       ],
@@ -188,21 +202,63 @@ const PreferenceQuestionnaire = () => {
           : [...prev[field], value],
       }));
     } else {
-      setPreferences((prev) => ({
-        ...prev,
-        [field]: value,
-      }));
-      // Auto-advance for single select questions
+      setPreferences((prev) => ({ ...prev, [field]: value }));
       if (currentStep < questions.length - 1) {
         setTimeout(() => setCurrentStep((prev) => prev + 1), 300);
       }
     }
   };
 
-  const handleSubmit = () => {
-    // Add your submission logic here
-    console.log("Final preferences:", preferences);
-    navigate("/dashboard"); // Navigate to dashboard after submission
+  const handleSubmit = async () => {
+    if (!user?.uid) {
+      setError("User not authenticated");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await setDoc(
+        doc(collection(db, "users", user.uid, "preferences"), "default"),
+        {
+          ...preferences,
+          updatedAt: new Date().toISOString(),
+        },
+      );
+
+      await updateDoc(doc(db, "users", user.uid), {
+        preferencesCompleted: true,
+        updatedAt: new Date().toISOString(),
+      });
+
+      navigate("/Udashboard");
+    } catch (err) {
+      console.error("Error saving preferences:", err);
+      setError("Failed to save preferences. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSkip = async () => {
+    if (!user?.uid) {
+      setError("User not authenticated");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, "users", user.uid), {
+        preferencesCompleted: true,
+        updatedAt: new Date().toISOString(),
+      });
+
+      navigate("/Udashboard");
+    } catch (err) {
+      console.error("Error skipping preferences:", err);
+      setError("Failed to skip. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const currentQuestion = questions[currentStep];
@@ -211,7 +267,12 @@ const PreferenceQuestionnaire = () => {
   return (
     <div className="min-h-screen bg-[#F6F0E4] flex flex-col items-center justify-center p-4">
       <div className="max-w-2xl w-full space-y-8">
-        {/* Progress Bar */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4">
+            <p className="text-red-600 font-['Arvo']">{error}</p>
+          </div>
+        )}
+
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div
             className="bg-[#990001] h-2 rounded-full transition-all duration-300"
@@ -238,6 +299,7 @@ const PreferenceQuestionnaire = () => {
                     currentQuestion.type === "multiSelect",
                   )
                 }
+                disabled={loading}
                 className={`
                   flex items-center p-4 rounded-lg border-2 transition-all
                   ${
@@ -247,6 +309,7 @@ const PreferenceQuestionnaire = () => {
                       ? "border-[#990001] bg-[#990001] bg-opacity-10"
                       : "border-gray-200 hover:border-[#990001]"
                   }
+                  ${loading ? "opacity-50 cursor-not-allowed" : ""}
                 `}
               >
                 {option.icon && <span className="mr-3">{option.icon}</span>}
@@ -258,7 +321,7 @@ const PreferenceQuestionnaire = () => {
           <div className="mt-8 flex justify-between">
             <button
               onClick={() => setCurrentStep((prev) => prev - 1)}
-              disabled={currentStep === 0}
+              disabled={currentStep === 0 || loading}
               className={`px-6 py-2 rounded-md font-['Arvo'] ${
                 currentStep === 0
                   ? "bg-gray-100 text-gray-400 cursor-not-allowed"
@@ -271,14 +334,16 @@ const PreferenceQuestionnaire = () => {
             {currentStep === questions.length - 1 ? (
               <button
                 onClick={handleSubmit}
-                className="px-6 py-2 bg-[#990001] text-white rounded-md hover:bg-[#800001] font-['Arvo']"
+                disabled={loading}
+                className="px-6 py-2 bg-[#990001] text-white rounded-md hover:bg-[#800001] font-['Arvo'] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Complete
+                {loading ? "Saving..." : "Complete"}
               </button>
             ) : (
               <button
                 onClick={() => setCurrentStep((prev) => prev + 1)}
-                className="px-6 py-2 bg-[#990001] text-white rounded-md hover:bg-[#800001] font-['Arvo']"
+                disabled={loading}
+                className="px-6 py-2 bg-[#990001] text-white rounded-md hover:bg-[#800001] font-['Arvo'] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next
               </button>
@@ -286,13 +351,13 @@ const PreferenceQuestionnaire = () => {
           </div>
         </div>
 
-        {/* Skip option */}
         <div className="text-center">
           <button
-            onClick={() => navigate("/dashboard")}
-            className="text-gray-500 hover:text-[#990001] font-['Arvo']"
+            onClick={handleSkip}
+            disabled={loading}
+            className="text-gray-500 hover:text-[#990001] font-['Arvo'] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Skip for now
+            {loading ? "Processing..." : "Skip for now"}
           </button>
         </div>
       </div>

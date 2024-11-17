@@ -23,6 +23,7 @@ const AppContent = () => {
     "/register",
     "/forgot-password",
     "/preferences",
+    "/Udashboard",
   ];
   const shouldShowNavigation = !noNavRoutes.includes(location.pathname);
 

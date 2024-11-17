@@ -10,7 +10,9 @@ import {
   Edit,
   Trash2,
   DollarSign,
+  LogOut,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
   collection,
@@ -50,6 +52,7 @@ const DIETARY_RESTRICTIONS = [
 ];
 
 const RestaurantDashboard = () => {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState("menu");
   const [menuItems, setMenuItems] = useState([]);
@@ -66,7 +69,6 @@ const RestaurantDashboard = () => {
     topSellingItems: [],
   });
 
-  // New menu item form state
   const [menuItemForm, setMenuItemForm] = useState({
     name: "",
     description: "",
@@ -78,6 +80,15 @@ const RestaurantDashboard = () => {
     allergens: [],
     status: "active",
   });
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate("/login");
+    } catch (error) {
+      console.error("Error logging out:", error);
+    }
+  };
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -263,12 +274,15 @@ const RestaurantDashboard = () => {
 
   return (
     <div className="min-h-screen bg-[#F6F0E4]">
-      {/* Top Navigation */}
+      {/* Single Dashboard Navigation */}
       <div className="bg-white shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center">
+            <div className="flex items-center space-x-8">
               <span className="text-2xl font-bold text-[#990001] font-['Arvo']">
+                DineWise
+              </span>
+              <span className="text-gray-500 font-['Arvo']">
                 Restaurant Dashboard
               </span>
             </div>
@@ -279,12 +293,18 @@ const RestaurantDashboard = () => {
               <button className="p-2 rounded-full hover:bg-gray-100">
                 <Settings className="w-6 h-6 text-gray-600" />
               </button>
-              <button
-                onClick={logout}
-                className="h-8 w-8 rounded-full bg-[#990001] text-white flex items-center justify-center font-['Arvo']"
-              >
-                {user?.businessName?.[0] || "R"}
-              </button>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-gray-700 font-['Arvo']">
+                  {user?.businessName}
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className="p-2 rounded-full hover:bg-gray-100 flex items-center"
+                  title="Logout"
+                >
+                  <LogOut className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -498,15 +518,15 @@ const RestaurantDashboard = () => {
 
       {/* Add/Edit Menu Item Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-full max-w-xl shadow-lg rounded-md bg-white">
             <div className="mt-3">
-              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4 font-['Arvo']">
                 {editingItem ? "Edit Menu Item" : "Add New Menu Item"}
               </h3>
               <form onSubmit={handleAddMenuItem} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700 font-['Arvo']">
                     Name
                   </label>
                   <input
@@ -521,7 +541,7 @@ const RestaurantDashboard = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700 font-['Arvo']">
                     Description
                   </label>
                   <textarea
@@ -540,7 +560,7 @@ const RestaurantDashboard = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label className="block text-sm font-medium text-gray-700 font-['Arvo']">
                       Price
                     </label>
                     <div className="mt-1 relative rounded-md shadow-sm">
@@ -564,7 +584,7 @@ const RestaurantDashboard = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label className="block text-sm font-medium text-gray-700 font-['Arvo']">
                       Category
                     </label>
                     <select
@@ -589,7 +609,7 @@ const RestaurantDashboard = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700 font-['Arvo']">
                     Preparation Time (minutes)
                   </label>
                   <input
@@ -607,14 +627,14 @@ const RestaurantDashboard = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700 font-['Arvo']">
                     Dietary Restrictions
                   </label>
-                  <div className="mt-2 space-y-2">
+                  <div className="mt-2 grid grid-cols-2 gap-2">
                     {DIETARY_RESTRICTIONS.map((restriction) => (
                       <label
                         key={restriction}
-                        className="inline-flex items-center mr-4"
+                        className="inline-flex items-center"
                       >
                         <input
                           type="checkbox"
@@ -635,9 +655,9 @@ const RestaurantDashboard = () => {
                               dietaryRestrictions: updatedRestrictions,
                             });
                           }}
-                          className="form-checkbox h-4 w-4 text-[#990001]"
+                          className="form-checkbox h-4 w-4 text-[#990001] rounded border-gray-300 focus:ring-[#990001]"
                         />
-                        <span className="ml-2 text-sm text-gray-700">
+                        <span className="ml-2 text-sm text-gray-700 font-['Arvo']">
                           {restriction}
                         </span>
                       </label>
@@ -653,14 +673,14 @@ const RestaurantDashboard = () => {
                       setEditingItem(null);
                       resetMenuItemForm();
                     }}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#990001]"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#990001] font-['Arvo']"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-4 py-2 text-sm font-medium text-white bg-[#990001] border border-transparent rounded-md hover:bg-[#800001] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#990001] disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 text-sm font-medium text-white bg-[#990001] border border-transparent rounded-md hover:bg-[#800001] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#990001] disabled:opacity-50 disabled:cursor-not-allowed font-['Arvo']"
                   >
                     {loading ? "Saving..." : "Save Item"}
                   </button>

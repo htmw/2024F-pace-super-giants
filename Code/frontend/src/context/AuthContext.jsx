@@ -41,19 +41,6 @@ export const AuthProvider = ({ children }) => {
             email: firebaseUser.email,
             ...userData,
           });
-
-          // Only redirect if we're not already on the preferences page
-          if (location.pathname !== "/preferences") {
-            if (userData.userType === "restaurant") {
-              navigate("/Rdashboard");
-            } else if (userData.userType === "customer") {
-              if (!userData.preferencesCompleted) {
-                navigate("/preferences");
-              } else {
-                navigate("/Udashboard");
-              }
-            }
-          }
         } catch (error) {
           console.error("Error fetching user data:", error);
           setError("Failed to load user data");
@@ -65,7 +52,30 @@ export const AuthProvider = ({ children }) => {
     });
 
     return () => unsubscribe();
-  }, [navigate, location.pathname]);
+  }, []);
+
+  // Handle navigation based on user state
+  useEffect(() => {
+    if (!loading && user) {
+      const from = location.state?.from?.pathname;
+
+      // Don't redirect if we're already on the preferences page
+      if (location.pathname === "/preferences") {
+        return;
+      }
+
+      // Handle redirects based on user type and preferences
+      if (user.userType === "restaurant") {
+        navigate("/Rdashboard", { replace: true });
+      } else if (user.userType === "customer") {
+        if (!user.preferencesCompleted) {
+          navigate("/preferences", { replace: true });
+        } else {
+          navigate(from || "/Udashboard", { replace: true });
+        }
+      }
+    }
+  }, [user, loading, navigate, location]);
 
   const getFirebaseErrorMessage = (errorCode) => {
     switch (errorCode) {
@@ -227,7 +237,7 @@ export const AuthProvider = ({ children }) => {
       await signOut(auth);
       setUser(null);
       setError(null);
-      navigate("/login");
+      navigate("/login", { replace: true });
     } catch (error) {
       setError("Failed to log out");
       throw error;

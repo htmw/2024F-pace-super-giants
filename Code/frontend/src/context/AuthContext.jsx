@@ -56,25 +56,44 @@ export const AuthProvider = ({ children }) => {
 
   // Handle navigation based on user state
   useEffect(() => {
-    if (!loading && user) {
-      const from = location.state?.from?.pathname;
+    const handleNavigation = async () => {
+      if (!loading && user) {
+        const from = location.state?.from?.pathname;
 
-      // Don't redirect if we're already on the preferences page
-      if (location.pathname === "/preferences") {
-        return;
-      }
+        // Don't redirect if we're already on these pages
+        if (
+          ["/preferences", "/login", "/register"].includes(location.pathname)
+        ) {
+          return;
+        }
 
-      // Handle redirects based on user type and preferences
-      if (user.userType === "restaurant") {
-        navigate("/Rdashboard", { replace: true });
-      } else if (user.userType === "customer") {
-        if (!user.preferencesCompleted) {
-          navigate("/preferences", { replace: true });
-        } else {
-          navigate(from || "/Udashboard", { replace: true });
+        try {
+          // For restaurant users
+          if (user.userType === "restaurant") {
+            navigate("/Rdashboard", { replace: true });
+            return;
+          }
+
+          // For customer users
+          if (user.userType === "customer") {
+            // Check if preferences exist
+            const preferencesDoc = await getDoc(
+              doc(db, "users", user.uid, "preferences", "default"),
+            );
+
+            if (!preferencesDoc.exists() || !user.preferencesCompleted) {
+              navigate("/preferences", { replace: true });
+            } else {
+              navigate(from || "/Udashboard", { replace: true });
+            }
+          }
+        } catch (error) {
+          console.error("Navigation error:", error);
         }
       }
-    }
+    };
+
+    handleNavigation();
   }, [user, loading, navigate, location]);
 
   const getFirebaseErrorMessage = (errorCode) => {
@@ -118,11 +137,26 @@ export const AuthProvider = ({ children }) => {
         );
       }
 
-      setUser({
-        uid: userCredential.user.uid,
-        email: userCredential.user.email,
-        ...userData,
-      });
+      // Check preferences after successful login for customer users
+      if (userType === "customer") {
+        const preferencesDoc = await getDoc(
+          doc(db, "users", userCredential.user.uid, "preferences", "default"),
+        );
+
+        // Set the user data including preferences status
+        setUser({
+          uid: userCredential.user.uid,
+          email: userCredential.user.email,
+          ...userData,
+          preferencesCompleted: preferencesDoc.exists(),
+        });
+      } else {
+        setUser({
+          uid: userCredential.user.uid,
+          email: userCredential.user.email,
+          ...userData,
+        });
+      }
 
       return userCredential;
     } catch (error) {
@@ -139,8 +173,12 @@ export const AuthProvider = ({ children }) => {
       const result = await signInWithPopup(auth, provider);
 
       const userDoc = await getDoc(doc(db, "users", result.user.uid));
+      const preferencesDoc = await getDoc(
+        doc(db, "users", result.user.uid, "preferences", "default"),
+      );
 
       if (!userDoc.exists()) {
+        // Create new user document for Google sign-in
         await setDoc(doc(db, "users", result.user.uid), {
           email: result.user.email,
           userType: "customer",
@@ -153,6 +191,7 @@ export const AuthProvider = ({ children }) => {
         uid: result.user.uid,
         email: result.user.email,
         ...userDoc.data(),
+        preferencesCompleted: preferencesDoc.exists(),
       });
 
       return result;
@@ -177,6 +216,7 @@ export const AuthProvider = ({ children }) => {
       await setDoc(doc(db, "users", userCredential.user.uid), {
         email,
         ...otherData,
+        preferencesCompleted: false,
         createdAt: new Date().toISOString(),
       });
 
@@ -184,6 +224,7 @@ export const AuthProvider = ({ children }) => {
         uid: userCredential.user.uid,
         email: userCredential.user.email,
         ...otherData,
+        preferencesCompleted: false,
       });
 
       return userCredential;

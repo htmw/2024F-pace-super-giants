@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Heart,
   AlertCircle,
@@ -9,6 +9,7 @@ import {
   Clock,
   UtensilsCrossed,
   ArrowLeft,
+  X,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { doc, updateDoc, setDoc, collection, getDoc } from "firebase/firestore";
@@ -16,9 +17,12 @@ import { db } from "../firebase";
 
 const PreferenceQuestionnaire = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromDashboard = location.state?.fromDashboard;
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [savingPreferences, setSavingPreferences] = useState(false);
   const [error, setError] = useState("");
   const [preferences, setPreferences] = useState({
     dietaryRestrictions: [],
@@ -239,29 +243,43 @@ const PreferenceQuestionnaire = () => {
       return;
     }
 
-    setLoading(true);
+    setSavingPreferences(true);
     try {
+      // Save preferences to Firestore
       await setDoc(doc(db, "users", user.uid, "preferences", "default"), {
         ...preferences,
         updatedAt: new Date().toISOString(),
       });
 
+      // Update user document to mark preferences as completed
       await updateDoc(doc(db, "users", user.uid), {
         preferencesCompleted: true,
         updatedAt: new Date().toISOString(),
       });
 
-      navigate("/Udashboard");
+      // Navigate based on where the user came from
+      if (fromDashboard) {
+        navigate("/Udashboard", {
+          replace: true,
+          state: {
+            preferencesUpdated: true,
+          },
+        });
+      } else {
+        navigate("/Udashboard", { replace: true });
+      }
     } catch (err) {
       console.error("Error saving preferences:", err);
       setError("Failed to save preferences. Please try again.");
     } finally {
-      setLoading(false);
+      setSavingPreferences(false);
     }
   };
 
   const handleGoBack = () => {
-    navigate("/Udashboard");
+    if (fromDashboard) {
+      navigate("/Udashboard", { replace: true });
+    }
   };
 
   if (loading) {
@@ -289,13 +307,15 @@ const PreferenceQuestionnaire = () => {
           </div>
         )}
 
-        <button
-          onClick={handleGoBack}
-          className="flex items-center text-[#990001] hover:text-[#800001] font-['Arvo']"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Dashboard
-        </button>
+        {fromDashboard && (
+          <button
+            onClick={handleGoBack}
+            className="flex items-center text-[#990001] hover:text-[#800001] font-['Arvo']"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Dashboard
+          </button>
+        )}
 
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div
@@ -323,7 +343,7 @@ const PreferenceQuestionnaire = () => {
                     currentQuestion.type === "multiSelect",
                   )
                 }
-                disabled={loading}
+                disabled={savingPreferences}
                 className={`
                   flex items-center p-4 rounded-lg border-2 transition-all
                   ${
@@ -333,7 +353,7 @@ const PreferenceQuestionnaire = () => {
                       ? "border-[#990001] bg-[#990001] bg-opacity-10"
                       : "border-gray-200 hover:border-[#990001]"
                   }
-                  ${loading ? "opacity-50 cursor-not-allowed" : ""}
+                  ${savingPreferences ? "opacity-50 cursor-not-allowed" : ""}
                 `}
               >
                 {option.icon && <span className="mr-3">{option.icon}</span>}
@@ -345,7 +365,7 @@ const PreferenceQuestionnaire = () => {
           <div className="mt-8 flex justify-between">
             <button
               onClick={() => setCurrentStep((prev) => prev - 1)}
-              disabled={currentStep === 0 || loading}
+              disabled={currentStep === 0 || savingPreferences}
               className={`px-6 py-2 rounded-md font-['Arvo'] ${
                 currentStep === 0
                   ? "bg-gray-100 text-gray-400 cursor-not-allowed"
@@ -358,15 +378,15 @@ const PreferenceQuestionnaire = () => {
             {currentStep === questions.length - 1 ? (
               <button
                 onClick={handleSubmit}
-                disabled={loading}
+                disabled={savingPreferences}
                 className="px-6 py-2 bg-[#990001] text-white rounded-md hover:bg-[#800001] font-['Arvo'] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? "Saving..." : "Save Preferences"}
+                {savingPreferences ? "Saving..." : "Save Preferences"}
               </button>
             ) : (
               <button
                 onClick={() => setCurrentStep((prev) => prev + 1)}
-                disabled={loading}
+                disabled={savingPreferences}
                 className="px-6 py-2 bg-[#990001] text-white rounded-md hover:bg-[#800001] font-['Arvo'] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next

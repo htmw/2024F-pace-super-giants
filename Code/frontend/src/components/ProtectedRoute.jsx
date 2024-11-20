@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 const ProtectedRoute = ({ children, requiredUserType = null }) => {
   const { user, isAuthenticated, loading } = useAuth();
   const location = useLocation();
+  const fromDashboard = location.state?.fromDashboard;
 
   if (loading) {
     return (
@@ -17,14 +18,38 @@ const ProtectedRoute = ({ children, requiredUserType = null }) => {
     );
   }
 
+  // Check authentication
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Allow access to preferences page if coming from dashboard
+  if (location.pathname === "/preferences" && fromDashboard) {
+    return children;
+  }
+
+  // Check user type requirement
   if (requiredUserType && user.userType !== requiredUserType) {
     const redirectPath =
       user.userType === "customer" ? "/Udashboard" : "/Rdashboard";
     return <Navigate to={redirectPath} replace />;
+  }
+
+  // Handle customer-specific routing
+  if (user.userType === "customer") {
+    // Force new users to complete preferences
+    if (!user.preferencesCompleted && location.pathname !== "/preferences") {
+      return <Navigate to="/preferences" replace />;
+    }
+
+    // Prevent accessing preferences page directly (must come from dashboard)
+    if (
+      location.pathname === "/preferences" &&
+      !fromDashboard &&
+      user.preferencesCompleted
+    ) {
+      return <Navigate to="/Udashboard" replace />;
+    }
   }
 
   return children;

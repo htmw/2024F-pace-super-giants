@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Settings,
   Bell,
@@ -10,7 +10,6 @@ import {
   Sliders,
   Search,
   LogOut,
-  Filter,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -77,7 +76,6 @@ const UserDashboard = () => {
           cuisine: doc.data().cuisine || "Various Cuisine",
         }));
 
-        console.log("Fetched Restaurants:", restaurantData); // Debug log
         setRestaurants(restaurantData);
         setLoading(false);
       } catch (err) {
@@ -115,6 +113,10 @@ const UserDashboard = () => {
       console.error("Logout error:", err);
       setError("Failed to logout");
     }
+  };
+
+  const handlePreferencesUpdate = () => {
+    navigate("/preferences", { state: { fromDashboard: true } });
   };
 
   const filteredRestaurants = restaurants.filter(
@@ -223,13 +225,13 @@ const UserDashboard = () => {
                 Discover new restaurants and explore your favorite cuisines
               </p>
             </div>
-            <Link
-              to="/preferences"
+            <button
+              onClick={handlePreferencesUpdate}
               className="flex items-center px-4 py-2 bg-[#990001] text-white rounded-md hover:bg-[#800001] font-['Arvo']"
             >
               <Sliders className="w-4 h-4 mr-2" />
               Update Preferences
-            </Link>
+            </button>
           </div>
         </div>
 
@@ -302,13 +304,13 @@ const UserDashboard = () => {
                   </span>
                 </div>
 
-                <Link
-                  to={`/restaurant/${restaurant.id}`}
+                <button
+                  onClick={() => navigate(`/restaurant/${restaurant.id}`)}
                   className="w-full mt-2 px-4 py-2 bg-[#990001] text-white rounded-md hover:bg-[#800001] transition-colors duration-300 font-['Arvo'] flex items-center justify-center"
                 >
                   View Menu
                   <ChevronRight className="w-4 h-4 ml-2" />
-                </Link>
+                </button>
               </div>
             </div>
           ))}

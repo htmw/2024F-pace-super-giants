@@ -5,7 +5,6 @@ import { useAuth } from "../context/AuthContext";
 const ProtectedRoute = ({ children, requiredUserType = null }) => {
   const { user, isAuthenticated, loading } = useAuth();
   const location = useLocation();
-  const fromDashboard = location.state?.fromDashboard;
 
   if (loading) {
     return (
@@ -23,43 +22,24 @@ const ProtectedRoute = ({ children, requiredUserType = null }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Allow access to restaurant menu pages without redirection
-  if (
-    location.pathname.startsWith("/restaurant/") &&
-    location.state?.restaurant
-  ) {
-    return children;
-  }
-
-  // Allow access to preferences page if coming from dashboard
-  if (location.pathname === "/preferences" && fromDashboard) {
-    return children;
-  }
-
-  // Check user type requirement
+  // If user is authenticated but wrong type, redirect to appropriate dashboard
   if (requiredUserType && user.userType !== requiredUserType) {
     const redirectPath =
       user.userType === "customer" ? "/Udashboard" : "/Rdashboard";
     return <Navigate to={redirectPath} replace />;
   }
 
-  // Handle customer-specific routing
-  if (user.userType === "customer") {
-    // Force new users to complete preferences
-    if (!user.preferencesCompleted && location.pathname !== "/preferences") {
-      return <Navigate to="/preferences" replace />;
+  // For customer users, handle preferences completion check
+  if (user.userType === "customer" && !user.preferencesCompleted) {
+    // Allow access to preferences page
+    if (location.pathname === "/preferences") {
+      return children;
     }
-
-    // Prevent accessing preferences page directly (must come from dashboard)
-    if (
-      location.pathname === "/preferences" &&
-      !fromDashboard &&
-      user.preferencesCompleted
-    ) {
-      return <Navigate to="/Udashboard" replace />;
-    }
+    // Redirect to preferences if not completed
+    return <Navigate to="/preferences" replace />;
   }
 
+  // If all checks pass, render the protected component
   return children;
 };
 

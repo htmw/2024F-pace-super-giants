@@ -7,23 +7,32 @@ const RestaurantMenu = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { restaurant } = location.state || {};
+  const { restaurant, fromUserDashboard } = location.state || {};
 
-  // If no restaurant data, redirect back to dashboard
+  // Only redirect if there's no restaurant data
   if (!restaurant) {
-    navigate("/Udashboard");
+    navigate("/Udashboard", { replace: true });
     return null;
   }
 
+  // Get user preferences from localStorage
+  const getUserPreferences = () => {
+    try {
+      const preferences = localStorage.getItem(`preferences_${user?.uid}`);
+      return preferences ? JSON.parse(preferences) : {};
+    } catch (error) {
+      console.error("Error parsing preferences:", error);
+      return {};
+    }
+  };
+
   // Filter menu items based on user preferences
   const filteredMenuItems = restaurant.menuItems.filter((item) => {
-    // Get user preferences from localStorage or context
-    const userPreferences =
-      JSON.parse(localStorage.getItem(`preferences_${user?.uid}`)) || {};
+    const userPreferences = getUserPreferences();
 
     // Check if item matches dietary restrictions
     if (userPreferences.dietaryRestrictions?.length > 0) {
-      const hasMatchingRestriction = item.dietaryRestrictions.some(
+      const hasMatchingRestriction = item.dietaryRestrictions?.some(
         (restriction) =>
           userPreferences.dietaryRestrictions.includes(restriction),
       );
@@ -104,7 +113,7 @@ const RestaurantMenu = () => {
                       <p className="text-gray-600 font-['Arvo'] mt-1">
                         {item.description}
                       </p>
-                      {item.dietaryRestrictions.length > 0 && (
+                      {item.dietaryRestrictions?.length > 0 && (
                         <div className="flex gap-2 mt-2">
                           {item.dietaryRestrictions.map((restriction) => (
                             <span

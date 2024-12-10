@@ -344,8 +344,18 @@ const UserDashboard = () => {
     }
   };
 
+  const handleViewMenu = (restaurant) => {
+    navigate(`/restaurant/${restaurant.id}`, {
+      state: { restaurant },
+      replace: false, // Don't replace the history entry
+    });
+  };
+
   const handlePreferencesUpdate = () => {
-    navigate("/preferences", { state: { fromDashboard: true } });
+    navigate("/preferences", {
+      state: { fromDashboard: true },
+      replace: false, // Don't replace the history entry
+    });
   };
 
   const filteredRestaurants = SAMPLE_RESTAURANTS.filter((restaurant) => {
@@ -490,11 +500,7 @@ const UserDashboard = () => {
                 </div>
 
                 <button
-                  onClick={() =>
-                    navigate(`/restaurant/${restaurant.id}`, {
-                      state: { restaurant },
-                    })
-                  }
+                  onClick={() => handleViewMenu(restaurant)}
                   className="w-full mt-2 px-4 py-2 bg-[#990001] text-white rounded-md hover:bg-[#800001] transition-colors duration-300 font-['Arvo'] flex items-center justify-center"
                 >
                   View Menu

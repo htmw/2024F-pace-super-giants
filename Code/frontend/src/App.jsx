@@ -57,14 +57,9 @@ const AppContent = () => {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/restaurant/:id"
-          element={
-            <ProtectedRoute requiredUserType="customer">
-              <RestaurantMenu />
-            </ProtectedRoute>
-          }
-        />
+
+        {/* Restaurant Menu Route */}
+        <Route path="/restaurant/:id" element={<RestaurantMenu />} />
 
         {/* Protected Restaurant Routes */}
         <Route

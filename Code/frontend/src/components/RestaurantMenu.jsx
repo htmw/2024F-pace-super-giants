@@ -19,11 +19,16 @@ const RestaurantMenu = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { restaurant, fromUserDashboard } = location.state || {};
+  const { restaurant } = location.state || {};
   const [currentTime, setCurrentTime] = useState(new Date());
   const [menuItemsWithPricing, setMenuItemsWithPricing] = useState([]);
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [userPreferences, setUserPreferences] = useState({
+    dietaryRestrictions: [],
+    spicePreference: "no_preference",
+    favoriteCategories: [],
+  });
 
   // Only redirect if there's no restaurant data
   if (!restaurant) {
@@ -31,8 +36,8 @@ const RestaurantMenu = () => {
     return null;
   }
 
-  // Get user preferences from localStorage
-  const getUserPreferences = () => {
+  // Load user preferences from localStorage
+  const loadUserPreferences = () => {
     try {
       const preferences = localStorage.getItem(`preferences_${user?.uid}`);
       return preferences ? JSON.parse(preferences) : {};
@@ -42,25 +47,73 @@ const RestaurantMenu = () => {
     }
   };
 
-  // Calculate recommendation score for an item
+  // Save user preferences to localStorage
+  const saveUserPreferences = (preferences) => {
+    localStorage.setItem(
+      `preferences_${user?.uid}`,
+      JSON.stringify(preferences),
+    );
+  };
+
+  // Load preferences on initial mount
+  useEffect(() => {
+    const prefs = loadUserPreferences();
+    setUserPreferences((prev) => ({ ...prev, ...prefs }));
+  }, [user?.uid]);
+
+  // Handle preference changes
+  const handlePreferenceChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    if (type === "checkbox") {
+      // For dietaryRestrictions and favoriteCategories (assuming these as multi-select options)
+      setUserPreferences((prev) => {
+        const updatedArray = prev[name] || [];
+        if (checked) {
+          return { ...prev, [name]: [...updatedArray, value] };
+        } else {
+          return {
+            ...prev,
+            [name]: updatedArray.filter((item) => item !== value),
+          };
+        }
+      });
+    } else {
+      setUserPreferences((prev) => ({ ...prev, [name]: value }));
+    }
+  };
+
+  // Save preferences when they change
+  useEffect(() => {
+    saveUserPreferences(userPreferences);
+  }, [userPreferences]);
+
+  // Calculate recommendation score for an item based on preferences
   const calculateRecommendationScore = (item, userPreferences) => {
     let score = 0;
 
-    // Match dietary restrictions
-    if (
-      userPreferences.dietaryRestrictions?.some((pref) =>
-        item.dietaryRestrictions?.includes(pref),
-      )
-    ) {
-      score += 3;
+    // Match dietary restrictions if set
+    if (userPreferences.dietaryRestrictions?.length > 0) {
+      const hasMatchingRestriction = userPreferences.dietaryRestrictions.some(
+        (pref) => item.dietaryRestrictions?.includes(pref),
+      );
+      if (hasMatchingRestriction) {
+        score += 3;
+      } else {
+        // If it doesn't match any dietary restriction, consider it less recommended
+        return -1;
+      }
     }
 
     // Match spice preference
     if (userPreferences.spicePreference === "hot" && item.isSpicy) {
       score += 2;
-    }
-    if (userPreferences.spicePreference === "mild" && !item.isSpicy) {
+    } else if (userPreferences.spicePreference === "mild" && !item.isSpicy) {
       score += 2;
+    } else if (userPreferences.spicePreference === "no_preference") {
+      // no penalty or bonus
+    } else {
+      // If user wants mild and item is spicy (or vice versa), it might be less suitable
+      // Not explicitly penalized since we handle filtering in logic below
     }
 
     // Match favorite categories
@@ -71,18 +124,18 @@ const RestaurantMenu = () => {
     return score;
   };
 
-  // Calculate dynamic price based on various factors
+  // Calculate dynamic price
   const calculateDynamicPrice = (basePrice, item) => {
     let multiplier = 1;
     const hour = currentTime.getHours();
     const minutes = currentTime.getMinutes();
 
-    // Peak hours pricing (lunch and dinner times)
+    // Peak hours pricing (e.g., lunch 12-14, dinner 18-20)
     if ((hour >= 12 && hour <= 14) || (hour >= 18 && hour <= 20)) {
       multiplier += 0.1; // 10% increase during peak hours
     }
 
-    // Late night discount
+    // Late night discount (21:00 to 05:00)
     if (hour >= 21 || hour <= 5) {
       multiplier -= 0.15; // 15% discount during late hours
     }
@@ -92,7 +145,7 @@ const RestaurantMenu = () => {
     const randomFactor = Math.sin(timeInterval + hour) * 0.05;
     multiplier += randomFactor;
 
-    // Demand-based pricing
+    // Demand-based pricing using a sine wave over time (example)
     const demandFactor = Math.sin(hour + minutes / 60) * 0.03;
     multiplier += demandFactor;
 
@@ -101,45 +154,49 @@ const RestaurantMenu = () => {
       multiplier += 0.05;
     }
 
-    // Ensure minimum pricing
+    // Ensure a minimum multiplier
     multiplier = Math.max(0.8, multiplier);
 
     return (basePrice * multiplier).toFixed(2);
   };
 
-  // Process and filter menu items
+  // Filter and process menu items based on user preferences
   const processMenuItems = () => {
-    const userPreferences = getUserPreferences();
-
     return restaurant.menuItems
       .filter((item) => {
+        // If dietary restrictions are set, item must match at least one
         if (userPreferences.dietaryRestrictions?.length > 0) {
-          const hasMatchingRestriction = item.dietaryRestrictions?.some(
-            (restriction) =>
-              userPreferences.dietaryRestrictions.includes(restriction),
+          const matchesRestriction = userPreferences.dietaryRestrictions.some(
+            (pref) => item.dietaryRestrictions?.includes(pref),
           );
-          if (!hasMatchingRestriction) return false;
+          if (!matchesRestriction) return false;
         }
 
+        // If spice preference is mild and item is spicy, exclude
         if (userPreferences.spicePreference === "mild" && item.isSpicy) {
+          return false;
+        }
+
+        // If spice preference is hot and item is not spicy, exclude
+        if (userPreferences.spicePreference === "hot" && !item.isSpicy) {
           return false;
         }
 
         return true;
       })
-      .map((item) => ({
-        ...item,
-        recommendationScore: calculateRecommendationScore(
-          item,
-          userPreferences,
-        ),
-        dynamicPrice: calculateDynamicPrice(item.price, item),
-        originalPrice: item.price,
-      }))
+      .map((item) => {
+        const score = calculateRecommendationScore(item, userPreferences);
+        return {
+          ...item,
+          recommendationScore: score,
+          dynamicPrice: calculateDynamicPrice(item.price, item),
+          originalPrice: item.price,
+        };
+      })
       .sort((a, b) => b.recommendationScore - a.recommendationScore);
   };
 
-  // Cart management functions
+  // Cart management
   const addToCart = (item) => {
     setCart((prevCart) => {
       const existingItem = prevCart.find((cartItem) => cartItem.id === item.id);
@@ -184,19 +241,19 @@ const RestaurantMenu = () => {
     return cartItem?.quantity || 0;
   };
 
-  // Update time and process menu items
+  // Update current time every minute
   useEffect(() => {
     const intervalId = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000);
-
     return () => clearInterval(intervalId);
   }, []);
 
+  // Reprocess items whenever current time or preferences change
   useEffect(() => {
     const processedItems = processMenuItems();
     setMenuItemsWithPricing(processedItems);
-  }, [currentTime]);
+  }, [currentTime, userPreferences]);
 
   const formatTime = (date) => {
     return date.toLocaleTimeString("en-US", {
@@ -361,6 +418,129 @@ const RestaurantMenu = () => {
           Back to Restaurants
         </button>
 
+        {/* Preferences Form */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 font-['Arvo'] mb-4">
+            Your Preferences
+          </h2>
+          <form className="space-y-4">
+            <div>
+              <label className="block mb-2 font-['Arvo'] font-medium">
+                Dietary Restrictions:
+              </label>
+              <div className="flex gap-4">
+                {/* Example dietary restrictions: */}
+                <label className="flex items-center gap-2 font-['Arvo'] text-sm">
+                  <input
+                    type="checkbox"
+                    name="dietaryRestrictions"
+                    value="Vegan"
+                    checked={userPreferences.dietaryRestrictions.includes(
+                      "Vegan",
+                    )}
+                    onChange={handlePreferenceChange}
+                  />
+                  Vegan
+                </label>
+                <label className="flex items-center gap-2 font-['Arvo'] text-sm">
+                  <input
+                    type="checkbox"
+                    name="dietaryRestrictions"
+                    value="Vegetarian"
+                    checked={userPreferences.dietaryRestrictions.includes(
+                      "Vegetarian",
+                    )}
+                    onChange={handlePreferenceChange}
+                  />
+                  Vegetarian
+                </label>
+                <label className="flex items-center gap-2 font-['Arvo'] text-sm">
+                  <input
+                    type="checkbox"
+                    name="dietaryRestrictions"
+                    value="Gluten-Free"
+                    checked={userPreferences.dietaryRestrictions.includes(
+                      "Gluten-Free",
+                    )}
+                    onChange={handlePreferenceChange}
+                  />
+                  Gluten-Free
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="block mb-2 font-['Arvo'] font-medium">
+                Spice Preference:
+              </label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 font-['Arvo'] text-sm">
+                  <input
+                    type="radio"
+                    name="spicePreference"
+                    value="mild"
+                    checked={userPreferences.spicePreference === "mild"}
+                    onChange={handlePreferenceChange}
+                  />
+                  Mild
+                </label>
+                <label className="flex items-center gap-2 font-['Arvo'] text-sm">
+                  <input
+                    type="radio"
+                    name="spicePreference"
+                    value="hot"
+                    checked={userPreferences.spicePreference === "hot"}
+                    onChange={handlePreferenceChange}
+                  />
+                  Hot
+                </label>
+                <label className="flex items-center gap-2 font-['Arvo'] text-sm">
+                  <input
+                    type="radio"
+                    name="spicePreference"
+                    value="no_preference"
+                    checked={
+                      userPreferences.spicePreference === "no_preference"
+                    }
+                    onChange={handlePreferenceChange}
+                  />
+                  No Preference
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="block mb-2 font-['Arvo'] font-medium">
+                Favorite Categories:
+              </label>
+              <div className="flex gap-4 flex-wrap">
+                {/* Example categories: */}
+                {[
+                  "Appetizer",
+                  "Main Course",
+                  "Dessert",
+                  "Beverages",
+                  "Specials",
+                ].map((cat) => (
+                  <label
+                    key={cat}
+                    className="flex items-center gap-2 font-['Arvo'] text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      name="favoriteCategories"
+                      value={cat}
+                      checked={userPreferences.favoriteCategories.includes(cat)}
+                      onChange={handlePreferenceChange}
+                    />
+                    {cat}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </form>
+        </div>
+
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <div className="flex justify-between items-start mb-4">
             <div>
@@ -473,7 +653,7 @@ const RestaurantMenu = () => {
       <CartButton />
       <CartSidebar />
 
-      {/* Optional: Backdrop when cart is open */}
+      {/* Backdrop when cart is open */}
       {isCartOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50"

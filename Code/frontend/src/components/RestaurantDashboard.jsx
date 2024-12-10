@@ -14,19 +14,6 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import {
-  collection,
-  query,
-  onSnapshot,
-  doc,
-  deleteDoc,
-  updateDoc,
-  addDoc,
-  orderBy,
-  where,
-  serverTimestamp,
-} from "firebase/firestore";
-import { db } from "../firebase";
 
 // Category options for menu items
 const CATEGORIES = [
@@ -91,45 +78,19 @@ const RestaurantDashboard = () => {
   };
 
   useEffect(() => {
-    if (!user?.uid) return;
+    // Load menu items from localStorage
+    const savedMenuItems = localStorage.getItem(`menuItems_${user?.uid}`);
+    const savedOrders = localStorage.getItem(`orders_${user?.uid}`);
 
-    // Listen to menu items
-    const menuUnsubscribe = onSnapshot(
-      query(
-        collection(db, `restaurants/${user.uid}/menuItems`),
-        orderBy("createdAt", "desc"),
-      ),
-      (snapshot) => {
-        const items = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setMenuItems(items);
-        setLoading(false);
-      },
-    );
-
-    // Listen to orders
-    const ordersUnsubscribe = onSnapshot(
-      query(
-        collection(db, "orders"),
-        where("restaurantId", "==", user.uid),
-        orderBy("createdAt", "desc"),
-      ),
-      (snapshot) => {
-        const orderData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setOrders(orderData);
-        calculateStats(orderData);
-      },
-    );
-
-    return () => {
-      menuUnsubscribe();
-      ordersUnsubscribe();
-    };
+    if (savedMenuItems) {
+      setMenuItems(JSON.parse(savedMenuItems));
+    }
+    if (savedOrders) {
+      const orderData = JSON.parse(savedOrders);
+      setOrders(orderData);
+      calculateStats(orderData);
+    }
+    setLoading(false);
   }, [user?.uid]);
 
   const calculateStats = (orderData) => {
@@ -170,23 +131,27 @@ const RestaurantDashboard = () => {
     try {
       const menuItemData = {
         ...menuItemForm,
+        id: editingItem?.id || Date.now().toString(),
         price: parseFloat(menuItemForm.price),
         preparationTime: parseInt(menuItemForm.preparationTime),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
+      let updatedMenuItems;
       if (editingItem) {
-        await updateDoc(
-          doc(db, `restaurants/${user.uid}/menuItems/${editingItem.id}`),
-          menuItemData,
+        updatedMenuItems = menuItems.map((item) =>
+          item.id === editingItem.id ? menuItemData : item,
         );
       } else {
-        await addDoc(
-          collection(db, `restaurants/${user.uid}/menuItems`),
-          menuItemData,
-        );
+        updatedMenuItems = [...menuItems, menuItemData];
       }
+
+      setMenuItems(updatedMenuItems);
+      localStorage.setItem(
+        `menuItems_${user?.uid}`,
+        JSON.stringify(updatedMenuItems),
+      );
 
       setShowAddModal(false);
       setEditingItem(null);
@@ -199,11 +164,16 @@ const RestaurantDashboard = () => {
     }
   };
 
-  const handleDeleteMenuItem = async (itemId) => {
+  const handleDeleteMenuItem = (itemId) => {
     if (!window.confirm("Are you sure you want to delete this item?")) return;
 
     try {
-      await deleteDoc(doc(db, `restaurants/${user.uid}/menuItems/${itemId}`));
+      const updatedMenuItems = menuItems.filter((item) => item.id !== itemId);
+      setMenuItems(updatedMenuItems);
+      localStorage.setItem(
+        `menuItems_${user?.uid}`,
+        JSON.stringify(updatedMenuItems),
+      );
     } catch (error) {
       console.error("Error deleting menu item:", error);
       alert("Failed to delete menu item. Please try again.");
@@ -240,12 +210,24 @@ const RestaurantDashboard = () => {
     });
   };
 
-  const handleUpdateStatus = async (itemId, newStatus) => {
+  const handleUpdateStatus = (itemId, newStatus) => {
     try {
-      await updateDoc(doc(db, `restaurants/${user.uid}/menuItems/${itemId}`), {
-        status: newStatus,
-        updatedAt: serverTimestamp(),
+      const updatedMenuItems = menuItems.map((item) => {
+        if (item.id === itemId) {
+          return {
+            ...item,
+            status: newStatus,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return item;
       });
+
+      setMenuItems(updatedMenuItems);
+      localStorage.setItem(
+        `menuItems_${user?.uid}`,
+        JSON.stringify(updatedMenuItems),
+      );
     } catch (error) {
       console.error("Error updating status:", error);
       alert("Failed to update item status. Please try again.");

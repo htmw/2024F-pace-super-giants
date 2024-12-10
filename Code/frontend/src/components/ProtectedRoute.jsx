@@ -23,6 +23,14 @@ const ProtectedRoute = ({ children, requiredUserType = null }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Allow access to restaurant menu pages without redirection
+  if (
+    location.pathname.startsWith("/restaurant/") &&
+    location.state?.restaurant
+  ) {
+    return children;
+  }
+
   // Allow access to preferences page if coming from dashboard
   if (location.pathname === "/preferences" && fromDashboard) {
     return children;

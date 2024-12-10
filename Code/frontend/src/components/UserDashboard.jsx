@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Settings,
@@ -12,98 +12,328 @@ import {
   LogOut,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  limit,
-  orderBy,
-  onSnapshot,
-} from "firebase/firestore";
-import { db } from "../firebase";
+
+// Sample restaurant data
+// Sample restaurant data
+const SAMPLE_RESTAURANTS = [
+  {
+    id: "1",
+    businessName: "Spice Garden",
+    cuisine: "Indian",
+    rating: 4.5,
+    businessAddress: "123 Curry Lane, Foodville",
+    businessPhone: "(555) 123-4567",
+    menuItems: [
+      {
+        id: "1",
+        name: "Butter Chicken",
+        price: 15.99,
+        description: "Creamy tomato-based curry with tender chicken",
+        category: "Main Course",
+        isSpicy: true,
+        dietaryRestrictions: ["Gluten-Free"],
+      },
+      {
+        id: "2",
+        name: "Palak Paneer",
+        price: 13.99,
+        description: "Spinach curry with cottage cheese",
+        category: "Main Course",
+        isSpicy: false,
+        dietaryRestrictions: ["Vegetarian", "Gluten-Free"],
+      },
+      {
+        id: "3",
+        name: "Vegetable Samosas",
+        price: 6.99,
+        description: "Crispy pastries filled with spiced potatoes and peas",
+        category: "Appetizers",
+        isSpicy: false,
+        dietaryRestrictions: ["Vegetarian"],
+      },
+      {
+        id: "4",
+        name: "Chicken Biryani",
+        price: 17.99,
+        description: "Fragrant rice dish with spiced chicken and aromatics",
+        category: "Main Course",
+        isSpicy: true,
+        dietaryRestrictions: ["Gluten-Free"],
+      },
+      {
+        id: "5",
+        name: "Dal Makhani",
+        price: 12.99,
+        description: "Creamy black lentils simmered overnight",
+        category: "Main Course",
+        isSpicy: false,
+        dietaryRestrictions: ["Vegetarian", "Gluten-Free"],
+      },
+      {
+        id: "6",
+        name: "Chicken Tikka",
+        price: 14.99,
+        description: "Tandoor-grilled marinated chicken pieces",
+        category: "Appetizers",
+        isSpicy: true,
+        dietaryRestrictions: ["Gluten-Free"],
+      },
+      {
+        id: "7",
+        name: "Malai Kofta",
+        price: 13.99,
+        description: "Cheese and vegetable dumplings in rich cream sauce",
+        category: "Main Course",
+        isSpicy: false,
+        dietaryRestrictions: ["Vegetarian"],
+      },
+      {
+        id: "8",
+        name: "Lamb Rogan Josh",
+        price: 18.99,
+        description: "Kashmiri-style lamb curry with aromatic spices",
+        category: "Main Course",
+        isSpicy: true,
+        dietaryRestrictions: ["Gluten-Free"],
+      },
+      {
+        id: "9",
+        name: "Gulab Jamun",
+        price: 5.99,
+        description: "Sweet milk dumplings in rose-scented syrup",
+        category: "Desserts",
+        isSpicy: false,
+        dietaryRestrictions: ["Vegetarian"],
+      },
+      {
+        id: "10",
+        name: "Mango Lassi",
+        price: 4.99,
+        description: "Yogurt-based mango smoothie",
+        category: "Beverages",
+        isSpicy: false,
+        dietaryRestrictions: ["Vegetarian", "Gluten-Free"],
+      },
+    ],
+  },
+  {
+    id: "2",
+    businessName: "Pasta Paradise",
+    cuisine: "Italian",
+    rating: 4.3,
+    businessAddress: "456 Pizza Street, Foodville",
+    businessPhone: "(555) 234-5678",
+    menuItems: [
+      {
+        id: "1",
+        name: "Margherita Pizza",
+        price: 14.99,
+        description: "Fresh tomatoes, mozzarella, and basil",
+        category: "Main Course",
+        isSpicy: false,
+        dietaryRestrictions: ["Vegetarian"],
+      },
+      {
+        id: "2",
+        name: "Spaghetti Carbonara",
+        price: 16.99,
+        description: "Classic pasta with eggs, cheese, and pancetta",
+        category: "Main Course",
+        isSpicy: false,
+        dietaryRestrictions: [],
+      },
+      {
+        id: "3",
+        name: "Bruschetta",
+        price: 8.99,
+        description: "Toasted bread with tomatoes, garlic, and basil",
+        category: "Appetizers",
+        isSpicy: false,
+        dietaryRestrictions: ["Vegetarian"],
+      },
+      {
+        id: "4",
+        name: "Fettuccine Alfredo",
+        price: 15.99,
+        description: "Pasta in creamy parmesan sauce",
+        category: "Main Course",
+        isSpicy: false,
+        dietaryRestrictions: ["Vegetarian"],
+      },
+      {
+        id: "5",
+        name: "Lasagna",
+        price: 17.99,
+        description: "Layered pasta with meat sauce and cheese",
+        category: "Main Course",
+        isSpicy: false,
+        dietaryRestrictions: [],
+      },
+      {
+        id: "6",
+        name: "Caprese Salad",
+        price: 10.99,
+        description: "Fresh mozzarella, tomatoes, and basil",
+        category: "Appetizers",
+        isSpicy: false,
+        dietaryRestrictions: ["Vegetarian", "Gluten-Free"],
+      },
+      {
+        id: "7",
+        name: "Tiramisu",
+        price: 7.99,
+        description: "Classic coffee-flavored Italian dessert",
+        category: "Desserts",
+        isSpicy: false,
+        dietaryRestrictions: ["Vegetarian"],
+      },
+      {
+        id: "8",
+        name: "Penne Arrabbiata",
+        price: 14.99,
+        description: "Spicy tomato sauce with garlic and red chilies",
+        category: "Main Course",
+        isSpicy: true,
+        dietaryRestrictions: ["Vegetarian"],
+      },
+      {
+        id: "9",
+        name: "Chicken Marsala",
+        price: 18.99,
+        description: "Chicken cutlets in Marsala wine sauce",
+        category: "Main Course",
+        isSpicy: false,
+        dietaryRestrictions: [],
+      },
+      {
+        id: "10",
+        name: "Cannoli",
+        price: 6.99,
+        description: "Crispy pastry tubes with sweet ricotta filling",
+        category: "Desserts",
+        isSpicy: false,
+        dietaryRestrictions: ["Vegetarian"],
+      },
+    ],
+  },
+  {
+    id: "3",
+    businessName: "Sushi Station",
+    cuisine: "Japanese",
+    rating: 4.7,
+    businessAddress: "789 Wasabi Way, Foodville",
+    businessPhone: "(555) 345-6789",
+    menuItems: [
+      {
+        id: "1",
+        name: "California Roll",
+        price: 12.99,
+        description: "Crab, avocado, and cucumber",
+        category: "Main Course",
+        isSpicy: false,
+        dietaryRestrictions: ["Gluten-Free"],
+      },
+      {
+        id: "2",
+        name: "Spicy Tuna Roll",
+        price: 14.99,
+        description: "Fresh tuna with spicy sauce",
+        category: "Main Course",
+        isSpicy: true,
+        dietaryRestrictions: ["Gluten-Free"],
+      },
+      {
+        id: "3",
+        name: "Miso Soup",
+        price: 4.99,
+        description: "Traditional Japanese soup with tofu",
+        category: "Appetizers",
+        isSpicy: false,
+        dietaryRestrictions: ["Vegetarian", "Gluten-Free"],
+      },
+      {
+        id: "4",
+        name: "Chicken Teriyaki",
+        price: 16.99,
+        description: "Grilled chicken with teriyaki sauce",
+        category: "Main Course",
+        isSpicy: false,
+        dietaryRestrictions: [],
+      },
+      {
+        id: "5",
+        name: "Tempura Udon",
+        price: 15.99,
+        description: "Noodle soup with crispy tempura",
+        category: "Main Course",
+        isSpicy: false,
+        dietaryRestrictions: [],
+      },
+      {
+        id: "6",
+        name: "Dragon Roll",
+        price: 16.99,
+        description: "Eel and cucumber topped with avocado",
+        category: "Main Course",
+        isSpicy: false,
+        dietaryRestrictions: ["Gluten-Free"],
+      },
+      {
+        id: "7",
+        name: "Edamame",
+        price: 5.99,
+        description: "Steamed soybeans with sea salt",
+        category: "Appetizers",
+        isSpicy: false,
+        dietaryRestrictions: ["Vegetarian", "Gluten-Free"],
+      },
+      {
+        id: "8",
+        name: "Salmon Nigiri",
+        price: 6.99,
+        description: "Fresh salmon over pressed rice",
+        category: "Main Course",
+        isSpicy: false,
+        dietaryRestrictions: ["Gluten-Free"],
+      },
+      {
+        id: "9",
+        name: "Green Tea Ice Cream",
+        price: 4.99,
+        description: "Traditional Japanese ice cream",
+        category: "Desserts",
+        isSpicy: false,
+        dietaryRestrictions: ["Vegetarian", "Gluten-Free"],
+      },
+      {
+        id: "10",
+        name: "Volcano Roll",
+        price: 15.99,
+        description: "Spicy baked scallops over California roll",
+        category: "Main Course",
+        isSpicy: true,
+        dietaryRestrictions: ["Gluten-Free"],
+      },
+    ],
+  },
+];
+
+const categories = [
+  "all",
+  "Indian",
+  "Italian",
+  "Chinese",
+  "Mexican",
+  "Japanese",
+  "American",
+];
 
 const UserDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [restaurants, setRestaurants] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [notifications, setNotifications] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [showNotifications, setShowNotifications] = useState(false);
-
-  // Categories for quick filters
-  const categories = [
-    "all",
-    "Indian",
-    "Italian",
-    "Chinese",
-    "Mexican",
-    "Japanese",
-    "American",
-  ];
-
-  useEffect(() => {
-    if (!user?.uid) return;
-
-    const fetchRestaurants = async () => {
-      try {
-        const usersRef = collection(db, "users");
-        let q = query(
-          usersRef,
-          where("userType", "==", "restaurant"),
-          limit(12),
-        );
-
-        if (selectedCategory !== "all") {
-          q = query(
-            usersRef,
-            where("userType", "==", "restaurant"),
-            where("cuisine", "==", selectedCategory),
-            limit(12),
-          );
-        }
-
-        const querySnapshot = await getDocs(q);
-        const restaurantData = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          businessName: doc.data().businessName || "Restaurant Name",
-          businessAddress: doc.data().businessAddress || "Address Unavailable",
-          businessPhone: doc.data().businessPhone || "Phone Unavailable",
-          cuisine: doc.data().cuisine || "Various Cuisine",
-        }));
-
-        setRestaurants(restaurantData);
-        setLoading(false);
-      } catch (err) {
-        console.error("Error fetching restaurants:", err);
-        setError("Failed to load restaurants");
-        setLoading(false);
-      }
-    };
-
-    // Listen to notifications
-    const notificationsRef = collection(db, `users/${user.uid}/notifications`);
-    const notificationsQuery = query(
-      notificationsRef,
-      where("read", "==", false),
-      orderBy("createdAt", "desc"),
-    );
-
-    const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
-      const notificationData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setNotifications(notificationData);
-    });
-
-    fetchRestaurants();
-    return () => unsubscribe();
-  }, [user?.uid, selectedCategory]);
 
   const handleLogout = async () => {
     try {
@@ -111,7 +341,6 @@ const UserDashboard = () => {
       navigate("/login");
     } catch (err) {
       console.error("Logout error:", err);
-      setError("Failed to logout");
     }
   };
 
@@ -119,28 +348,21 @@ const UserDashboard = () => {
     navigate("/preferences", { state: { fromDashboard: true } });
   };
 
-  const filteredRestaurants = restaurants.filter(
-    (restaurant) =>
+  const filteredRestaurants = SAMPLE_RESTAURANTS.filter((restaurant) => {
+    const matchesSearch =
       restaurant.businessName
-        ?.toLowerCase()
+        .toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
       restaurant.businessAddress
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase()),
-  );
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#F6F0E4] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#990001] border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-gray-600 font-['Arvo']">
-            Loading your recommendations...
-          </p>
-        </div>
-      </div>
-    );
-  }
+    const matchesCategory =
+      selectedCategory === "all" ||
+      restaurant.cuisine.toLowerCase() === selectedCategory.toLowerCase();
+
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <div className="min-h-screen bg-[#F6F0E4]">
@@ -155,43 +377,6 @@ const UserDashboard = () => {
             </div>
 
             <div className="flex items-center space-x-4">
-              <div className="relative">
-                <button
-                  className="p-2 rounded-full hover:bg-gray-100"
-                  onClick={() => setShowNotifications(!showNotifications)}
-                >
-                  <Bell className="w-6 h-6 text-gray-600" />
-                  {notifications.length > 0 && (
-                    <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">
-                      {notifications.length}
-                    </span>
-                  )}
-                </button>
-
-                {/* Notifications Dropdown */}
-                {showNotifications && notifications.length > 0 && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg z-50">
-                    <div className="py-2">
-                      {notifications.map((notification) => (
-                        <div
-                          key={notification.id}
-                          className="px-4 py-2 hover:bg-gray-50"
-                        >
-                          <p className="text-sm font-['Arvo']">
-                            {notification.message}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(
-                              notification.createdAt?.toDate(),
-                            ).toLocaleString()}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
               <button className="p-2 rounded-full hover:bg-gray-100">
                 <Settings className="w-6 h-6 text-gray-600" />
               </button>
@@ -305,7 +490,11 @@ const UserDashboard = () => {
                 </div>
 
                 <button
-                  onClick={() => navigate(`/restaurant/${restaurant.id}`)}
+                  onClick={() =>
+                    navigate(`/restaurant/${restaurant.id}`, {
+                      state: { restaurant },
+                    })
+                  }
                   className="w-full mt-2 px-4 py-2 bg-[#990001] text-white rounded-md hover:bg-[#800001] transition-colors duration-300 font-['Arvo'] flex items-center justify-center"
                 >
                   View Menu

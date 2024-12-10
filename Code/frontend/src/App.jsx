@@ -14,6 +14,7 @@ import ForgotPassword from "./components/ForgotPassword";
 import PreferenceQuestionnaire from "./components/PreferenceQuestionnaire";
 import RestaurantDashboard from "./components/RestaurantDashboard";
 import UserDashboard from "./components/UserDashboard";
+import RestaurantMenu from "./components/RestaurantMenu";
 
 const AppContent = () => {
   const location = useLocation();
@@ -25,16 +26,21 @@ const AppContent = () => {
     "/preferences",
     "/Udashboard",
   ];
-  const shouldShowNavigation = !noNavRoutes.includes(location.pathname);
+  const shouldShowNavigation =
+    !noNavRoutes.includes(location.pathname) &&
+    !location.pathname.startsWith("/restaurant/");
 
   return (
     <div className="min-h-screen bg-[#F6F0E4]">
       {shouldShowNavigation && <Navigation />}
       <Routes>
+        {/* Public Routes */}
         <Route path="/" element={<HomePage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+
+        {/* Protected Customer Routes */}
         <Route
           path="/preferences"
           element={
@@ -52,6 +58,16 @@ const AppContent = () => {
           }
         />
         <Route
+          path="/restaurant/:id"
+          element={
+            <ProtectedRoute requiredUserType="customer">
+              <RestaurantMenu />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Protected Restaurant Routes */}
+        <Route
           path="/Rdashboard"
           element={
             <ProtectedRoute requiredUserType="restaurant">
@@ -59,6 +75,8 @@ const AppContent = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* 404 Route */}
         <Route
           path="*"
           element={

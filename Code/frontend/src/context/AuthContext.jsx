@@ -54,46 +54,12 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
-  // Handle navigation based on user state
+  // Minimal navigation effect - only handles initial login redirect
   useEffect(() => {
-    const handleNavigation = async () => {
-      if (!loading && user) {
-        const from = location.state?.from?.pathname;
-
-        // Don't redirect if we're already on these pages
-        if (
-          ["/preferences", "/login", "/register"].includes(location.pathname)
-        ) {
-          return;
-        }
-
-        try {
-          // For restaurant users
-          if (user.userType === "restaurant") {
-            navigate("/Rdashboard", { replace: true });
-            return;
-          }
-
-          // For customer users
-          if (user.userType === "customer") {
-            // Check if preferences exist
-            const preferencesDoc = await getDoc(
-              doc(db, "users", user.uid, "preferences", "default"),
-            );
-
-            if (!preferencesDoc.exists() || !user.preferencesCompleted) {
-              navigate("/preferences", { replace: true });
-            } else {
-              navigate(from || "/Udashboard", { replace: true });
-            }
-          }
-        } catch (error) {
-          console.error("Navigation error:", error);
-        }
-      }
-    };
-
-    handleNavigation();
+    if (!loading && user && location.pathname === "/login") {
+      const from = location.state?.from?.pathname || "/";
+      navigate(from);
+    }
   }, [user, loading, navigate, location]);
 
   const getFirebaseErrorMessage = (errorCode) => {
@@ -127,7 +93,6 @@ export const AuthProvider = ({ children }) => {
         email,
         password,
       );
-
       const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
       const userData = userDoc.data();
 
@@ -137,25 +102,31 @@ export const AuthProvider = ({ children }) => {
         );
       }
 
-      // Check preferences after successful login for customer users
       if (userType === "customer") {
         const preferencesDoc = await getDoc(
           doc(db, "users", userCredential.user.uid, "preferences", "default"),
         );
 
-        // Set the user data including preferences status
         setUser({
           uid: userCredential.user.uid,
           email: userCredential.user.email,
           ...userData,
           preferencesCompleted: preferencesDoc.exists(),
         });
+
+        // Optional navigation based on preferences
+        if (!preferencesDoc.exists()) {
+          navigate("/preferences");
+        }
       } else {
         setUser({
           uid: userCredential.user.uid,
           email: userCredential.user.email,
           ...userData,
         });
+
+        // Optional navigation for restaurant users
+        navigate("/Rdashboard");
       }
 
       return userCredential;
@@ -178,7 +149,6 @@ export const AuthProvider = ({ children }) => {
       );
 
       if (!userDoc.exists()) {
-        // Create new user document for Google sign-in
         await setDoc(doc(db, "users", result.user.uid), {
           email: result.user.email,
           userType: "customer",
@@ -193,6 +163,10 @@ export const AuthProvider = ({ children }) => {
         ...userDoc.data(),
         preferencesCompleted: preferencesDoc.exists(),
       });
+
+      if (!preferencesDoc.exists()) {
+        navigate("/preferences");
+      }
 
       return result;
     } catch (error) {
@@ -226,6 +200,12 @@ export const AuthProvider = ({ children }) => {
         ...otherData,
         preferencesCompleted: false,
       });
+
+      if (otherData.userType === "customer") {
+        navigate("/preferences");
+      } else {
+        navigate("/Rdashboard");
+      }
 
       return userCredential;
     } catch (error) {
@@ -264,7 +244,6 @@ export const AuthProvider = ({ children }) => {
       }
 
       await updatePassword(currentUser, newPassword);
-
       return true;
     } catch (error) {
       const errorMessage = getFirebaseErrorMessage(error.code);
@@ -278,7 +257,7 @@ export const AuthProvider = ({ children }) => {
       await signOut(auth);
       setUser(null);
       setError(null);
-      navigate("/login", { replace: true });
+      navigate("/login");
     } catch (error) {
       setError("Failed to log out");
       throw error;

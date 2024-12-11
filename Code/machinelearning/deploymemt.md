@@ -1,5 +1,26 @@
 # DineWise Deployment Guide
 
+## Table of Contents
+
+1. [Local Development Setup](#local-development-setup)
+   - [Prerequisites](#prerequisites)
+   - [Frontend Setup (React)](#frontend-setup-react)
+   - [Backend Setup (Flask)](#backend-setup-flask)
+
+2. [Google Cloud Platform (GCP) Deployment](#google-cloud-platform-gcp-deployment)
+   - [Frontend Deployment (Cloud Run)](#frontend-deployment-cloud-run)
+   - [Backend Deployment (Cloud Run)](#backend-deployment-cloud-run)
+
+3. [DigitalOcean Deployment](#digitalocean-deployment)
+   - [Prerequisites](#prerequisites-1)
+   - [Frontend Deployment (App Platform)](#frontend-deployment-app-platform)
+   - [Backend Deployment (Droplet)](#backend-deployment-droplet)
+
+4. [Important Security Notes](#important-security-notes)
+
+5. [Troubleshooting](#troubleshooting)
+   - [Common Issues](#common-issues)
+
 ## Local Development Setup
 
 ### Prerequisites
